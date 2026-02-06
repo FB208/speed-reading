@@ -1,0 +1,115 @@
+import axios from 'axios';
+
+// 创建axios实例
+const api = axios.create({
+  baseURL: 'http://localhost:8000',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// 请求拦截器 - 添加token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// 响应拦截器 - 处理错误
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// 认证相关API
+export const authAPI = {
+  login: (username, password) => 
+    api.post('/auth/login', { username, password }),
+  
+  register: (username, email, password) => 
+    api.post('/auth/register', { username, email, password }),
+};
+
+// 书籍相关API
+export const booksAPI = {
+  getBooks: (skip = 0, limit = 100) => 
+    api.get(`/books/?skip=${skip}&limit=${limit}`),
+  
+  getBook: (bookId) => 
+    api.get(`/books/${bookId}`),
+  
+  uploadBook: (file, title, author, onProgress) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
+    if (author) formData.append('author', author);
+    
+    return api.post('/books/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percentCompleted);
+        }
+      },
+    });
+  },
+  
+  getParagraphs: (bookId, skip = 0, limit = 1000) => 
+    api.get(`/books/${bookId}/paragraphs?skip=${skip}&limit=${limit}`),
+  
+  updateParagraph: (bookId, paragraphId, content) => 
+    api.put(`/books/${bookId}/paragraphs/${paragraphId}`, null, {
+      params: { content }
+    }),
+  
+  deleteParagraph: (bookId, paragraphId) => 
+    api.delete(`/books/${bookId}/paragraphs/${paragraphId}`),
+  
+  deleteBook: (bookId) => 
+    api.delete(`/books/${bookId}`),
+};
+
+// 阅读测试相关API
+export const readingAPI = {
+  getNextParagraph: (bookId) => 
+    api.get(`/reading/next-paragraph/${bookId}`),
+  
+  getQuestions: (paragraphId) => 
+    api.get(`/reading/questions/${paragraphId}`),
+  
+  submitTest: (paragraphId, readingTimeSeconds, answers) => 
+    api.post('/reading/submit-test', {
+      paragraph_id: paragraphId,
+      reading_time_seconds: readingTimeSeconds,
+      answers: answers,
+    }),
+  
+  getTestResults: (skip = 0, limit = 50) => 
+    api.get(`/reading/results?skip=${skip}&limit=${limit}`),
+  
+  getTestResultDetail: (resultId) => 
+    api.get(`/reading/results/${resultId}`),
+  
+  getReadingProgress: (bookId) => 
+    api.get(`/reading/progress/${bookId}`),
+};
+
+export default api;
