@@ -3,6 +3,7 @@ version: '3.8'
 services:
   speed-reading:
     image: ${REGISTRY_REPO:-speed-reading}:${VERSION:-latest}
+    container_name: speed-reading
     ports:
       - "33090:80"
     env_file:
