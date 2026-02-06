@@ -376,14 +376,14 @@ def submit_test(
     return test_result
 
 
-@router.get("/results", response_model=List[schemas.TestResultResponse])
+@router.get("/results")
 def get_test_results(
     skip: int = 0,
-    limit: int = 50,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """获取用户的测试历史"""
+    """获取用户的测试历史（包含书籍信息）"""
     results = (
         db.query(models.TestResult)
         .filter(models.TestResult.user_id == current_user.id)
@@ -393,7 +393,36 @@ def get_test_results(
         .all()
     )
 
-    return results
+    # 构建包含书籍信息的响应
+    response = []
+    for result in results:
+        paragraph = (
+            db.query(models.Paragraph)
+            .filter(models.Paragraph.id == result.paragraph_id)
+            .first()
+        )
+        book = None
+        if paragraph:
+            book = (
+                db.query(models.Book)
+                .filter(models.Book.id == paragraph.book_id)
+                .first()
+            )
+        
+        response.append({
+            "id": result.id,
+            "paragraph_id": result.paragraph_id,
+            "reading_time_seconds": result.reading_time_seconds,
+            "words_per_minute": result.words_per_minute,
+            "correct_count": result.correct_count,
+            "total_questions": result.total_questions,
+            "comprehension_rate": result.comprehension_rate,
+            "created_at": result.created_at,
+            "book_id": book.id if book else None,
+            "book_title": book.title if book else "未知书籍",
+        })
+
+    return response
 
 
 @router.get("/results/{result_id}", response_model=dict)
@@ -463,6 +492,74 @@ def get_test_result_detail(
         "paragraph_content": paragraph.content if paragraph else None,
         "answers_detail": answers_detail,
     }
+
+
+@router.delete("/results/{result_id}")
+def delete_test_result(
+    result_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """删除测试结果"""
+    result = (
+        db.query(models.TestResult)
+        .filter(
+            models.TestResult.id == result_id,
+            models.TestResult.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="测试结果不存在"
+        )
+
+    # 删除关联的用户答案（通过级联删除自动处理）
+    db.delete(result)
+    db.commit()
+
+    return {"message": "删除成功", "id": result_id}
+
+
+@router.delete("/results/book/{book_id}")
+def delete_book_test_results(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """删除某本书的所有测试记录"""
+    # 获取该书籍的所有段落ID
+    paragraph_ids = [
+        p.id for p in db.query(models.Paragraph)
+        .filter(models.Paragraph.book_id == book_id)
+        .all()
+    ]
+    
+    if not paragraph_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在"
+        )
+    
+    # 删除该用户在这本书中的所有测试结果
+    deleted_count = (
+        db.query(models.TestResult)
+        .filter(
+            models.TestResult.user_id == current_user.id,
+            models.TestResult.paragraph_id.in_(paragraph_ids),
+        )
+        .delete(synchronize_session=False)
+    )
+    
+    # 同时删除阅读进度
+    db.query(models.ReadingProgress).filter(
+        models.ReadingProgress.user_id == current_user.id,
+        models.ReadingProgress.book_id == book_id,
+    ).delete(synchronize_session=False)
+    
+    db.commit()
+
+    return {"message": f"已删除 {deleted_count} 条记录", "book_id": book_id, "deleted_count": deleted_count}
 
 
 @router.get("/progress/{book_id}", response_model=dict)

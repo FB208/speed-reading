@@ -130,6 +130,12 @@ export const readingAPI = {
   getTestResultDetail: (resultId) => 
     api.get(`/reading/results/${resultId}`),
   
+  deleteTestResult: (resultId) => 
+    api.delete(`/reading/results/${resultId}`),
+  
+  deleteBookResults: (bookId) => 
+    api.delete(`/reading/results/book/${bookId}`),
+  
   getReadingProgress: (bookId) => 
     api.get(`/reading/progress/${bookId}`),
 };
