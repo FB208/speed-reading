@@ -13,6 +13,8 @@ router = APIRouter(prefix="/reading", tags=["阅读测试"])
 
 # 存储正在生成问题的任务状态
 generating_tasks = {}
+# 线程锁，防止并发重复生成
+generating_lock = threading.Lock()
 
 
 def generate_questions_async(
@@ -20,16 +22,27 @@ def generate_questions_async(
 ):
     """后台异步生成问题"""
     try:
-        # 标记为正在生成
-        generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
-        print(f"[异步生成] 开始为段落{paragraph_id}生成问题")
-
         # 创建新的数据库会话
         from app.db.database import SessionLocal
 
         db = SessionLocal()
 
         try:
+            # 【关键】再次检查数据库，确保问题不存在（防止并发重复生成）
+            existing_count = (
+                db.query(models.Question)
+                .filter(models.Question.paragraph_id == paragraph_id)
+                .count()
+            )
+            if existing_count > 0:
+                print(f"[异步生成] 段落{paragraph_id}已有{existing_count}道问题，跳过生成")
+                generating_tasks[paragraph_id] = {"status": "completed", "progress": 100}
+                return
+
+            # 标记为正在生成
+            generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
+            print(f"[异步生成] 开始为段落{paragraph_id}生成问题")
+
             ai_service = AIService()
             questions_data = ai_service.generate_questions(paragraph_content)
             ai_service.save_questions(db, paragraph_id, questions_data)
@@ -41,14 +54,21 @@ def generate_questions_async(
             # 即使失败也要保存默认问题，避免循环
             print(f"[异步生成] 段落{paragraph_id}生成失败，使用默认问题: {str(e)}")
             try:
-                # 保存默认问题
-                default_questions = AIService()._get_default_questions()
-                AIService().save_questions(db, paragraph_id, default_questions)
+                # 再次检查，避免重复保存
+                existing_count = (
+                    db.query(models.Question)
+                    .filter(models.Question.paragraph_id == paragraph_id)
+                    .count()
+                )
+                if existing_count == 0:
+                    # 保存默认问题
+                    default_questions = AIService()._get_default_questions()
+                    AIService().save_questions(db, paragraph_id, default_questions)
+                    print(f"[异步生成] 段落{paragraph_id}已保存默认问题")
                 generating_tasks[paragraph_id] = {
                     "status": "completed",
                     "progress": 100,
                 }
-                print(f"[异步生成] 段落{paragraph_id}已保存默认问题")
             except Exception as save_error:
                 print(f"[异步生成] 保存默认问题也失败: {str(save_error)}")
                 generating_tasks[paragraph_id] = {"status": "failed", "error": str(e)}
@@ -115,15 +135,16 @@ def get_next_paragraph(
     )
 
     # 如果问题不存在且没有在生成中，启动后台任务生成问题
-    if existing_questions == 0 and next_paragraph.id not in generating_tasks:
-        print(f"[获取段落] 段落{next_paragraph.id}没有问题，启动异步生成")
-        thread = threading.Thread(
-            target=generate_questions_async,
-            args=(next_paragraph.id, next_paragraph.content, None),
-        )
-        thread.daemon = True
-        thread.start()
-        generating_tasks[next_paragraph.id] = {"status": "generating", "progress": 0}
+    with generating_lock:
+        if existing_questions == 0 and next_paragraph.id not in generating_tasks:
+            print(f"[获取段落] 段落{next_paragraph.id}没有问题，启动异步生成")
+            generating_tasks[next_paragraph.id] = {"status": "generating", "progress": 0}
+            thread = threading.Thread(
+                target=generate_questions_async,
+                args=(next_paragraph.id, next_paragraph.content, None),
+            )
+            thread.daemon = True
+            thread.start()
 
     return {
         "paragraph": {
@@ -238,28 +259,33 @@ def get_questions(
             # 任务失败，清除状态并重新启动
             print(f"[获取问题] 段落{paragraph_id}生成失败，重新启动")
             del generating_tasks[paragraph_id]
-            # 重新启动生成
-            thread = threading.Thread(
-                target=generate_questions_async,
-                args=(paragraph_id, paragraph.content, None),
-            )
-            thread.daemon = True
-            thread.start()
-            generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
+            # 重新启动生成（使用锁保护）
+            with generating_lock:
+                if paragraph_id not in generating_tasks:
+                    generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
+                    thread = threading.Thread(
+                        target=generate_questions_async,
+                        args=(paragraph_id, paragraph.content, None),
+                    )
+                    thread.daemon = True
+                    thread.start()
             return {
                 "status": "generating",
                 "message": "问题重新生成中，请稍候...",
                 "questions": [],
             }
 
-    # 如果没有在生成中，启动生成
-    print(f"[获取问题] 段落{paragraph_id}没有任务，启动生成")
-    thread = threading.Thread(
-        target=generate_questions_async, args=(paragraph_id, paragraph.content, None)
-    )
-    thread.daemon = True
-    thread.start()
-    generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
+    # 如果没有在生成中，启动生成（使用锁保护）
+    with generating_lock:
+        # 再次检查，防止并发
+        if paragraph_id not in generating_tasks:
+            print(f"[获取问题] 段落{paragraph_id}没有任务，启动生成")
+            generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
+            thread = threading.Thread(
+                target=generate_questions_async, args=(paragraph_id, paragraph.content, None)
+            )
+            thread.daemon = True
+            thread.start()
 
     return {
         "status": "generating",
@@ -432,6 +458,15 @@ def get_test_result_detail(
     current_user: models.User = Depends(get_current_user),
 ):
     """获取测试详情（包含正确答案）"""
+    print(f"[获取结果详情] 查询 result_id={result_id}, user_id={current_user.id}")
+    
+    # 先不带用户过滤查询，看记录是否存在
+    result_any = db.query(models.TestResult).filter(models.TestResult.id == result_id).first()
+    if result_any:
+        print(f"[获取结果详情] 记录存在，属于 user_id={result_any.user_id}")
+    else:
+        print(f"[获取结果详情] 记录 id={result_id} 不存在")
+    
     result = (
         db.query(models.TestResult)
         .filter(
@@ -494,35 +529,7 @@ def get_test_result_detail(
     }
 
 
-@router.delete("/results/{result_id}")
-def delete_test_result(
-    result_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """删除测试结果"""
-    result = (
-        db.query(models.TestResult)
-        .filter(
-            models.TestResult.id == result_id,
-            models.TestResult.user_id == current_user.id,
-        )
-        .first()
-    )
-
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="测试结果不存在"
-        )
-
-    # 删除关联的用户答案（通过级联删除自动处理）
-    db.delete(result)
-    db.commit()
-
-    return {"message": "删除成功", "id": result_id}
-
-
-@router.delete("/results/book/{book_id}")
+@router.delete("/clear-book/{book_id}")
 def delete_book_test_results(
     book_id: int,
     db: Session = Depends(get_db),
@@ -560,6 +567,34 @@ def delete_book_test_results(
     db.commit()
 
     return {"message": f"已删除 {deleted_count} 条记录", "book_id": book_id, "deleted_count": deleted_count}
+
+
+@router.delete("/results/{result_id}")
+def delete_test_result(
+    result_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """删除测试结果"""
+    result = (
+        db.query(models.TestResult)
+        .filter(
+            models.TestResult.id == result_id,
+            models.TestResult.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="测试结果不存在"
+        )
+
+    # 删除关联的用户答案（通过级联删除自动处理）
+    db.delete(result)
+    db.commit()
+
+    return {"message": "删除成功", "id": result_id}
 
 
 @router.get("/progress/{book_id}", response_model=dict)

@@ -238,50 +238,46 @@ def delete_paragraph(
     if not paragraph:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    # 删除该段落相关的所有问题
-    db.query(models.Question).filter(
-        models.Question.paragraph_id == paragraph_id
-    ).delete()
-
-    # 删除该段落相关的所有阅读进度
-    db.query(models.ReadingProgress).filter(
-        models.ReadingProgress.paragraph_id == paragraph_id
-    ).delete()
-
-    # 删除该段落相关的所有测试结果
-    test_results = (
-        db.query(models.TestResult)
-        .filter(models.TestResult.paragraph_id == paragraph_id)
-        .all()
-    )
-    for test_result in test_results:
-        db.query(models.UserAnswer).filter(
-            models.UserAnswer.test_result_id == test_result.id
-        ).delete()
-        db.delete(test_result)
-
     # 获取被删除段落的序号
     deleted_sequence = paragraph.sequence
 
+    # 批量删除相关的测试结果（UserAnswer 会通过级联删除自动处理）
+    db.query(models.TestResult).filter(
+        models.TestResult.paragraph_id == paragraph_id
+    ).delete(synchronize_session=False)
+
+    # 批量删除阅读进度
+    db.query(models.ReadingProgress).filter(
+        models.ReadingProgress.paragraph_id == paragraph_id
+    ).delete(synchronize_session=False)
+
+    # 删除问题（通过段落的级联删除自动处理，但为确保先手动删除）
+    db.query(models.Question).filter(
+        models.Question.paragraph_id == paragraph_id
+    ).delete(synchronize_session=False)
+
     # 删除段落
     db.delete(paragraph)
-    db.commit()
 
-    # 重新排序剩余的段落
-    paragraphs = (
-        db.query(models.Paragraph)
-        .filter(models.Paragraph.book_id == book_id)
-        .order_by(models.Paragraph.sequence)
-        .all()
+    # 只更新序号大于被删除段落的记录（而不是全部重新排序）
+    db.query(models.Paragraph).filter(
+        models.Paragraph.book_id == book_id,
+        models.Paragraph.sequence > deleted_sequence
+    ).update(
+        {models.Paragraph.sequence: models.Paragraph.sequence - 1},
+        synchronize_session=False
     )
-
-    for i, p in enumerate(paragraphs, 1):
-        p.sequence = i
 
     # 更新书籍段落数
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if book:
-        book.total_paragraphs = len(paragraphs)
+        book.total_paragraphs = (
+            db.query(models.Paragraph)
+            .filter(models.Paragraph.book_id == book_id)
+            .count()
+        ) - 1  # 减1因为当前段落还未真正删除
+
+    # 一次性提交所有更改
     db.commit()
 
 
@@ -297,44 +293,43 @@ def delete_book(
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
 
-    # 获取封面路径
+    # 获取封面路径和文件名（在删除前保存）
     cover_image = book.cover_image
+    filename = book.filename
 
-    # 获取所有段落ID
-    paragraph_ids = [
-        p.id
-        for p in db.query(models.Paragraph)
+    # 获取所有段落ID（使用子查询）
+    paragraph_ids_subquery = (
+        db.query(models.Paragraph.id)
         .filter(models.Paragraph.book_id == book_id)
-        .all()
-    ]
+    )
 
-    # 删除相关问题
-    for pid in paragraph_ids:
-        db.query(models.Question).filter(models.Question.paragraph_id == pid).delete()
+    # 批量删除测试结果（UserAnswer 通过级联删除自动处理）
+    db.query(models.TestResult).filter(
+        models.TestResult.paragraph_id.in_(paragraph_ids_subquery)
+    ).delete(synchronize_session=False)
 
-    # 删除相关阅读进度
+    # 批量删除阅读进度
     db.query(models.ReadingProgress).filter(
         models.ReadingProgress.book_id == book_id
-    ).delete()
+    ).delete(synchronize_session=False)
 
-    # 删除相关测试结果
-    test_results = (
-        db.query(models.TestResult)
-        .filter(models.TestResult.paragraph_id.in_(paragraph_ids))
-        .all()
-    )
-    for test_result in test_results:
-        db.query(models.UserAnswer).filter(
-            models.UserAnswer.test_result_id == test_result.id
-        ).delete()
-        db.delete(test_result)
+    # 批量删除问题
+    db.query(models.Question).filter(
+        models.Question.paragraph_id.in_(paragraph_ids_subquery)
+    ).delete(synchronize_session=False)
 
-    # 删除所有段落
-    db.query(models.Paragraph).filter(models.Paragraph.book_id == book_id).delete()
+    # 批量删除所有段落
+    db.query(models.Paragraph).filter(
+        models.Paragraph.book_id == book_id
+    ).delete(synchronize_session=False)
 
-    # 删除书籍文件
+    # 删除书籍记录
+    db.delete(book)
+    db.commit()
+
+    # 删除书籍文件（在事务提交后进行）
     try:
-        file_path = os.path.join(UPLOAD_DIR, book.filename)
+        file_path = os.path.join(UPLOAD_DIR, filename)
         if os.path.exists(file_path):
             os.remove(file_path)
     except Exception as e:
@@ -348,6 +343,3 @@ def delete_book(
         except Exception as e:
             print(f"删除封面失败: {str(e)}")
 
-    # 删除书籍记录
-    db.delete(book)
-    db.commit()

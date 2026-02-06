@@ -167,25 +167,19 @@ const ReadingTest = () => {
   // 跳过测试保存历史记录并进入结果页
   const skipTest = async () => {
     const currentReadingTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
-    const currentWordCount = paragraph?.content ? paragraph.content.length : 0;
-    
-    // 计算阅读速度（字/分钟）
-    const currentWordsPerMinute = currentReadingTimeSeconds > 0 
-      ? Math.round((currentWordCount / currentReadingTimeSeconds) * 60)
-      : 0;
     
     setSubmitting(true);
     
     try {
       // 保存跳过的历史记录 - 使用submitTest API
-      await readingAPI.submitTest(
+      const response = await readingAPI.submitTest(
         paragraph.id,
         currentReadingTimeSeconds,
         []  // 跳过没有答案
       );
       
-      // 跳转到结果页
-      navigate(`/result/${paragraph.id}?bookId=${bookId}&time=${currentReadingTimeSeconds}&wordCount=${currentWordCount}&speed=${currentWordsPerMinute}&skipped=true`);
+      // 使用返回的测试结果 ID 跳转
+      navigate(`/result/${response.data.id}?skipped=true`);
     } catch (err) {
       setError('保存跳过记录失败');
       console.error('保存跳过记录失败:', err);

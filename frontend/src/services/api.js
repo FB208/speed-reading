@@ -134,7 +134,7 @@ export const readingAPI = {
     api.delete(`/reading/results/${resultId}`),
   
   deleteBookResults: (bookId) => 
-    api.delete(`/reading/results/book/${bookId}`),
+    api.delete(`/reading/clear-book/${bookId}`),
   
   getReadingProgress: (bookId) => 
     api.get(`/reading/progress/${bookId}`),

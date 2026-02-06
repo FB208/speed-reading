@@ -178,9 +178,9 @@ class BookProcessor:
                     content = item.get_content().decode("utf-8", errors="ignore")
                     soup = BeautifulSoup(content, "html.parser")
 
-                    # 移除script和style标签
-                    for script in soup(["script", "style"]):
-                        script.decompose()
+                    # 移除script、style和img标签
+                    for tag in soup(["script", "style", "img", "image", "svg"]):
+                        tag.decompose()
 
                     # 获取body内容，如果没有body则获取整个内容
                     body = soup.find("body")
@@ -214,9 +214,9 @@ class BookProcessor:
             # 解析并清理HTML
             soup = BeautifulSoup(content, "html.parser")
 
-            # 移除script和style标签
-            for script in soup(["script", "style"]):
-                script.decompose()
+            # 移除script、style和img标签
+            for tag in soup(["script", "style", "img", "image", "svg"]):
+                tag.decompose()
 
             return str(soup)
         except Exception as e:
