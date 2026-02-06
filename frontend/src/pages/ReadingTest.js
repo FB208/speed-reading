@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { readingAPI } from '../services/api';
 
 const ReadingTest = () => {
   const { bookId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [paragraph, setParagraph] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -163,6 +164,36 @@ const ReadingTest = () => {
     }
   };
 
+  // 跳过测试保存历史记录并进入结果页
+  const skipTest = async () => {
+    const currentReadingTimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const currentWordCount = paragraph?.content ? paragraph.content.length : 0;
+    
+    // 计算阅读速度（字/分钟）
+    const currentWordsPerMinute = currentReadingTimeSeconds > 0 
+      ? Math.round((currentWordCount / currentReadingTimeSeconds) * 60)
+      : 0;
+    
+    setSubmitting(true);
+    
+    try {
+      // 保存跳过的历史记录 - 使用submitTest API
+      await readingAPI.submitTest(
+        paragraph.id,
+        currentReadingTimeSeconds,
+        []  // 跳过没有答案
+      );
+      
+      // 跳转到结果页
+      navigate(`/result/${paragraph.id}?bookId=${bookId}&time=${currentReadingTimeSeconds}&wordCount=${currentWordCount}&speed=${currentWordsPerMinute}&skipped=true`);
+    } catch (err) {
+      setError('保存跳过记录失败');
+      console.error('保存跳过记录失败:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return <div className="loading">加载中...</div>;
   }
@@ -265,7 +296,41 @@ const ReadingTest = () => {
 
       {showQuestions && (
         <div className="card">
-          <h3 style={{ marginBottom: '24px' }}>阅读理解测试</h3>
+          {/* 跳过答题按钮 - 放置在答题界面顶部 */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '24px',
+            paddingBottom: '16px',
+            borderBottom: '1px solid #e8e8e8'
+          }}>
+            <h3 style={{ margin: 0 }}>阅读理解测试</h3>
+            <button
+              onClick={skipTest}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#ff4d4f',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                transition: 'all 0.3s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#ff7875';
+                e.target.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#ff4d4f';
+                e.target.style.transform = 'translateY(0)';
+              }}
+            >
+              跳过答题
+            </button>
+          </div>
           
           {questionsLoading && questionsStatus === 'generating' && (
             <div style={{ textAlign: 'center', padding: '40px' }}>
