@@ -39,19 +39,28 @@ const History = () => {
 
   return (
     <div className="container">
-      <h1 style={{ marginBottom: '24px' }}>测试历史</h1>
+      <h1 style={{ 
+        marginBottom: '28px',
+        color: 'var(--text-heading)',
+        fontSize: '26px'
+      }}>
+        测试历史
+      </h1>
 
       {error && <div className="error-message">{error}</div>}
 
       {results.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p>还没有测试记录</p>
-          <Link to="/books" className="btn btn-primary" style={{ marginTop: '16px' }}>
+        <div className="card empty-state">
+          <div className="empty-state-icon">📊</div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
+            还没有测试记录
+          </p>
+          <Link to="/books" className="btn btn-primary">
             去阅读书籍
           </Link>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {results.map((result) => (
             <div key={result.id} className="card">
               <div 
@@ -60,38 +69,79 @@ const History = () => {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   flexWrap: 'wrap',
-                  gap: '12px'
+                  gap: '16px'
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px' }}>
+                  <div style={{ 
+                    fontSize: '17px', 
+                    fontWeight: 600, 
+                    marginBottom: '6px',
+                    color: 'var(--text-heading)'
+                  }}>
                     段落 #{result.paragraph_id}
                   </div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>
+                  <div style={{ 
+                    color: 'var(--text-muted)', 
+                    fontSize: '14px'
+                  }}>
                     {formatDate(result.created_at)}
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
+                    <div style={{ 
+                      fontSize: '24px', 
+                      fontWeight: 600, 
+                      color: 'var(--accent-primary)',
+                      fontFamily: 'monospace'
+                    }}>
                       {result.words_per_minute}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#999' }}>字/分钟</div>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--text-muted)',
+                      marginTop: '4px'
+                    }}>
+                      字/分钟
+                    </div>
                   </div>
                   
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                    <div style={{ 
+                      fontSize: '24px', 
+                      fontWeight: 600, 
+                      color: 'var(--success)',
+                      fontFamily: 'monospace'
+                    }}>
                       {result.comprehension_rate}%
                     </div>
-                    <div style={{ fontSize: '12px', color: '#999' }}>理解程度</div>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--text-muted)',
+                      marginTop: '4px'
+                    }}>
+                      理解程度
+                    </div>
                   </div>
                   
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fa8c16' }}>
+                    <div style={{ 
+                      fontSize: '24px', 
+                      fontWeight: 600, 
+                      color: 'var(--warning)',
+                      fontFamily: 'monospace'
+                    }}>
                       {result.correct_count}/{result.total_questions}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#999' }}>答对</div>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--text-muted)',
+                      marginTop: '4px'
+                    }}>
+                      答对
+                    </div>
                   </div>
                   
                   <Link 

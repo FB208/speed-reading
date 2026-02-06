@@ -48,6 +48,7 @@ class BookCreate(BookBase):
 class BookResponse(BookBase):
     id: int
     filename: str
+    cover_image: Optional[str] = None
     total_paragraphs: int
     created_at: datetime
 

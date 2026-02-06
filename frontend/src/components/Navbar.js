@@ -12,74 +12,42 @@ const Navbar = () => {
   };
 
   return (
-    <nav style={{ 
-      backgroundColor: '#1890ff', 
-      padding: '0 24px',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-    }}>
-      <div style={{ 
-        maxWidth: '1200px', 
-        margin: '0 auto',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        height: '64px'
-      }}>
-        <Link 
-          to="/" 
-          style={{ 
-            color: 'white', 
-            fontSize: '20px', 
-            fontWeight: 'bold',
-            textDecoration: 'none'
-          }}
-        >
+    <nav className="navbar">
+      <div className="navbar-content">
+        <Link to="/" className="navbar-brand">
           快速阅读
         </Link>
 
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+        <div className="navbar-nav">
           {isAuthenticated ? (
             <>
-              <Link to="/books" style={{ color: 'white', textDecoration: 'none' }}>
+              <Link to="/books" className="navbar-link">
                 书籍列表
               </Link>
-              <Link to="/upload" style={{ color: 'white', textDecoration: 'none' }}>
+              <Link to="/upload" className="navbar-link">
                 上传书籍
               </Link>
-              <Link to="/history" style={{ color: 'white', textDecoration: 'none' }}>
+              <Link to="/history" className="navbar-link">
                 历史记录
               </Link>
-              <span style={{ color: 'rgba(255,255,255,0.8)' }}>
+              <span className="navbar-user">
                 {user?.username}
               </span>
               <button
                 onClick={handleLogout}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid white',
-                  color: 'white',
-                  padding: '6px 16px',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
+                className="navbar-btn"
               >
                 退出
               </button>
             </>
           ) : (
             <>
-              <Link to="/login" style={{ color: 'white', textDecoration: 'none' }}>
+              <Link to="/login" className="navbar-link">
                 登录
               </Link>
               <Link 
                 to="/register" 
-                style={{ 
-                  color: '#1890ff', 
-                  background: 'white',
-                  padding: '6px 16px',
-                  borderRadius: '4px',
-                  textDecoration: 'none'
-                }}
+                className="navbar-btn navbar-btn-primary"
               >
                 注册
               </Link>

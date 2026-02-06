@@ -35,6 +35,7 @@ class Book(Base):
     title = Column(String(200), nullable=False)
     author = Column(String(100), nullable=True)
     filename = Column(String(255), nullable=False)
+    cover_image = Column(String(255), nullable=True)  # 封面图片路径
     total_paragraphs = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 

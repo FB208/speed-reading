@@ -1,10 +1,44 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import inspect, text
 from app.api import auth, books, reading
 from app.db.database import engine, Base
 
-# 创建数据库表
+# 创建数据库表（如果不存在）
 Base.metadata.create_all(bind=engine)
+
+
+# 自动更新数据库结构（添加缺失的字段）
+def update_database_schema():
+    """检查并添加缺失的数据库字段"""
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    # books 表需要添加的新字段
+    schema_updates = [
+        ("books", "cover_image", "VARCHAR(255) NULL"),
+    ]
+
+    for table_name, col_name, col_def in schema_updates:
+        if table_name not in existing_tables:
+            continue
+
+        existing_columns = inspector.get_columns(table_name)
+        existing_column_names = [c["name"] for c in existing_columns]
+
+        if col_name not in existing_column_names:
+            try:
+                with engine.connect() as conn:
+                    alter_stmt = f"ALTER TABLE {table_name} ADD COLUMN {col_def}"
+                    conn.execute(text(alter_stmt))
+                    conn.commit()
+                print(f"✓ 已添加字段: {table_name}.{col_name}")
+            except Exception as e:
+                print(f"✗ 添加字段失败 {table_name}.{col_name}: {e}")
+
+
+update_database_schema()
 
 app = FastAPI(
     title="快速阅读 API",
@@ -32,6 +66,13 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(books.router)
 app.include_router(reading.router)
+
+# 静态文件服务（封面图片）
+import os
+
+covers_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "covers")
+if os.path.exists(covers_dir):
+    app.mount("/covers", StaticFiles(directory=covers_dir), name="covers")
 
 
 @app.get("/")

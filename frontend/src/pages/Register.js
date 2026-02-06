@@ -27,7 +27,6 @@ const Register = () => {
     setError('');
     setSuccess('');
 
-    // 验证密码
     if (formData.password !== formData.confirmPassword) {
       setError('两次输入的密码不一致');
       return;
@@ -56,11 +55,23 @@ const Register = () => {
 
   return (
     <div className="container">
-      <div className="card" style={{ maxWidth: '400px', margin: '40px auto' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>注册</h2>
+      <div className="card" style={{ maxWidth: '420px', margin: '60px auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>✨</div>
+          <h2 style={{ 
+            color: 'var(--text-heading)',
+            fontSize: '24px',
+            marginBottom: '8px'
+          }}>
+            创建账号
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+            开始你的阅读训练之旅
+          </p>
+        </div>
         
-        {error && <div className="error-message" style={{ marginBottom: '16px' }}>{error}</div>}
-        {success && <div className="success-message" style={{ marginBottom: '16px' }}>{success}</div>}
+        {error && <div className="error-message" style={{ marginBottom: '20px' }}>{error}</div>}
+        {success && <div className="success-message" style={{ marginBottom: '20px' }}>{success}</div>}
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -71,6 +82,7 @@ const Register = () => {
               className="form-input"
               value={formData.username}
               onChange={handleChange}
+              placeholder="请输入用户名"
               required
             />
           </div>
@@ -83,6 +95,7 @@ const Register = () => {
               className="form-input"
               value={formData.email}
               onChange={handleChange}
+              placeholder="请输入邮箱"
               required
             />
           </div>
@@ -95,6 +108,7 @@ const Register = () => {
               className="form-input"
               value={formData.password}
               onChange={handleChange}
+              placeholder="至少6位字符"
               required
             />
           </div>
@@ -107,6 +121,7 @@ const Register = () => {
               className="form-input"
               value={formData.confirmPassword}
               onChange={handleChange}
+              placeholder="再次输入密码"
               required
             />
           </div>
@@ -114,15 +129,27 @@ const Register = () => {
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%' }}
+            style={{ width: '100%', marginTop: '8px' }}
             disabled={loading}
           >
             {loading ? '注册中...' : '注册'}
           </button>
         </form>
         
-        <p style={{ textAlign: 'center', marginTop: '16px' }}>
-          已有账号？ <Link to="/login">立即登录</Link>
+        <p style={{ 
+          textAlign: 'center', 
+          marginTop: '24px',
+          color: 'var(--text-secondary)',
+          fontSize: '14px'
+        }}>
+          已有账号？{' '}
+          <Link to="/login" style={{ 
+            color: 'var(--accent-primary)',
+            textDecoration: 'none',
+            fontWeight: 500
+          }}>
+            立即登录
+          </Link>
         </p>
       </div>
     </div>

@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.db.database import get_db
 from app.models import models, schemas
 from app.services.book_processor import BookProcessor
+from app.utils.cover_extractor import CoverExtractor
 from app.api.deps import get_current_user
 import os
 import shutil
@@ -13,7 +14,9 @@ router = APIRouter(prefix="/books", tags=["书籍"])
 
 # 确保上传目录存在
 UPLOAD_DIR = "uploads"
+COVERS_DIR = os.path.join(UPLOAD_DIR, "covers")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(COVERS_DIR, exist_ok=True)
 
 
 @router.get("/", response_model=List[schemas.BookResponse])
@@ -44,15 +47,16 @@ def get_book(
 @router.post("/upload", response_model=schemas.BookResponse)
 async def upload_book(
     file: UploadFile = File(...),
-    title: str = None,
-    author: str = None,
+    title: Optional[str] = None,
+    author: Optional[str] = None,
+    cover: Optional[UploadFile] = File(None),  # 可选的封面上传
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """上传书籍文件"""
+    """上传书籍文件（支持手动上传封面或自动提取）"""
     # 检查文件类型
     allowed_extensions = (".txt", ".docx", ".epub", ".mobi", ".pdf")
-    if not file.filename.lower().endswith(allowed_extensions):
+    if not file.filename or not file.filename.lower().endswith(allowed_extensions):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"仅支持 {', '.join(allowed_extensions)} 格式的文件",
@@ -79,9 +83,36 @@ async def upload_book(
     if not title:
         title = os.path.splitext(file.filename)[0]
 
+    # 处理封面
+    cover_extractor = CoverExtractor(COVERS_DIR)
+    cover_image = None
+
+    try:
+        # 如果有手动上传的封面
+        manual_cover_data = None
+        manual_cover_filename = None
+        if cover and cover.filename:
+            manual_cover_data = await cover.read()
+            manual_cover_filename = cover.filename
+            cover.file.close()
+
+        # 提取或保存封面
+        cover_image = cover_extractor.extract_cover(
+            file_path,
+            manual_cover=manual_cover_data,
+            manual_filename=manual_cover_filename,
+        )
+    except Exception as e:
+        print(f"封面处理失败: {str(e)}")
+        # 封面处理失败不影响书籍上传
+
     # 创建书籍记录
     db_book = models.Book(
-        title=title, author=author, filename=safe_filename, total_paragraphs=0
+        title=title,
+        author=author,
+        filename=safe_filename,
+        cover_image=cover_image,
+        total_paragraphs=0,
     )
     db.add(db_book)
     db.commit()
@@ -92,10 +123,12 @@ async def upload_book(
         processor = BookProcessor(db)
         await processor.process_book(db_book.id, file_path)
     except Exception as e:
-        # 如果处理失败，删除书籍记录和文件
+        # 如果处理失败，删除书籍记录、文件和封面
         db.delete(db_book)
         db.commit()
         os.remove(file_path)
+        if cover_image:
+            cover_extractor.delete_cover(cover_image)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"书籍处理失败: {str(e)}",
@@ -247,7 +280,8 @@ def delete_paragraph(
 
     # 更新书籍段落数
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
-    book.total_paragraphs = len(paragraphs)
+    if book:
+        book.total_paragraphs = len(paragraphs)
     db.commit()
 
 
@@ -262,6 +296,9 @@ def delete_book(
 
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
+
+    # 获取封面路径
+    cover_image = book.cover_image
 
     # 获取所有段落ID
     paragraph_ids = [
@@ -302,6 +339,14 @@ def delete_book(
             os.remove(file_path)
     except Exception as e:
         print(f"删除文件失败: {str(e)}")
+
+    # 删除封面图片
+    if cover_image:
+        try:
+            cover_extractor = CoverExtractor(COVERS_DIR)
+            cover_extractor.delete_cover(cover_image)
+        except Exception as e:
+            print(f"删除封面失败: {str(e)}")
 
     # 删除书籍记录
     db.delete(book)

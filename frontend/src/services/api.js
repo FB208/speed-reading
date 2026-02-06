@@ -72,6 +72,28 @@ export const booksAPI = {
     });
   },
   
+  uploadBookWithCover: (file, title, author, cover, onProgress) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
+    if (author) formData.append('author', author);
+    if (cover) formData.append('cover', cover);
+    
+    return api.post('/books/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percentCompleted);
+        }
+      },
+    });
+  },
+  
   getParagraphs: (bookId, skip = 0, limit = 1000) => 
     api.get(`/books/${bookId}/paragraphs?skip=${skip}&limit=${limit}`),
   
