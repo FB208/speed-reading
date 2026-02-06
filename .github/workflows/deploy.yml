@@ -66,8 +66,8 @@ jobs:
             # 切换到部署目录（应包含 docker-compose.yml 和 .env）
             cd "${{ secrets.DEPLOY_DIR }}"
             # 拉取并以指定版本启动
-            VERSION="$VERSION" docker compose -f docker-compose.yml pull app
-            VERSION="$VERSION" docker compose -f docker-compose.yml up -d --no-build app
+            VERSION="$VERSION" docker compose -f docker-compose.yml pull speed-reading
+            VERSION="$VERSION" docker compose -f docker-compose.yml up -d --no-build speed-reading
             # 清理无用镜像
             docker image prune -f
 

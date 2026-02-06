@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   speed-reading:
     image: ${REGISTRY_REPO:-speed-reading}:${VERSION:-latest}
@@ -10,7 +8,7 @@ services:
       - .env
     restart: unless-stopped
     volumes:
-      - uploads:/app/uploads
+      - ./uploads:/app/uploads
     networks:
       - mynet
 networks:
