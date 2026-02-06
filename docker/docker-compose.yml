@@ -1,0 +1,56 @@
+# ============================================
+# Speed Reading 部署配置
+# ============================================
+# 使用前请在同目录下创建 .env 文件（参考 .env.example）
+# app 服务的环境变量通过 env_file 从 .env 文件加载
+# docker-compose.yml 中仅保留需要在 compose 层面使用的变量
+# ============================================
+
+version: '3.8'
+
+services:
+  app:
+    image: ${REGISTRY_REPO:-speed-reading}:${VERSION:-latest}
+    ports:
+      - "${APP_PORT:-80}:80"
+    env_file:
+      - .env
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - uploads:/app/uploads
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-speed_reading}
+      - MYSQL_CHARSET=utf8mb4
+      - MYSQL_COLLATION=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads:

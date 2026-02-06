@@ -1,8 +1,10 @@
 import axios from 'axios';
 
 // 创建axios实例
+// 生产环境（Docker）中 REACT_APP_API_BASE_URL 设为空字符串，使用同源请求经 nginx 代理
+// 本地开发时默认直连后端 http://localhost:8000
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8000',
   headers: {
     'Content-Type': 'application/json',
   },

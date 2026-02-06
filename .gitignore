@@ -41,6 +41,9 @@ venv.bak/
 .env
 .env.local
 .env.*.local
+.env.secrets
+!.env.example
+!.env.secrets.example
 
 # Database
 *.db

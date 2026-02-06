@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Node
+frontend/node_modules
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Python
+backend/venv
+backend/__pycache__
+backend/**/__pycache__
+backend/*.pyc
+backend/.env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose*.yml
+.dockerignore
+
+# Docs
+*.md
+LICENSE
