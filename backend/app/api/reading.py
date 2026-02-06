@@ -548,7 +548,23 @@ def delete_book_test_results(
             status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在"
         )
     
-    # 删除该用户在这本书中的所有测试结果
+    # 获取该用户在这本书中的所有测试结果ID
+    test_result_ids = [
+        r.id for r in db.query(models.TestResult.id)
+        .filter(
+            models.TestResult.user_id == current_user.id,
+            models.TestResult.paragraph_id.in_(paragraph_ids),
+        )
+        .all()
+    ]
+    
+    # 先删除关联的用户答案记录（避免外键约束冲突）
+    if test_result_ids:
+        db.query(models.UserAnswer).filter(
+            models.UserAnswer.test_result_id.in_(test_result_ids)
+        ).delete(synchronize_session=False)
+    
+    # 再删除测试结果
     deleted_count = (
         db.query(models.TestResult)
         .filter(
