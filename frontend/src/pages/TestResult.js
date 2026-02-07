@@ -79,48 +79,25 @@ const TestResult = () => {
       <div className="card">
         <h2 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--text-heading)' }}>测试结果</h2>
 
-        {/* 顶部操作按钮 - 最主要操作是"下一节" */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '12px', 
-          marginBottom: '32px', 
-          flexWrap: 'wrap', 
-          alignItems: 'center' 
-        }}>
+        {/* 顶部操作按钮 */}
+        <div className="result-actions">
           {result && result.book_id && (
             <Link
               to={`/read/${result.book_id}`}
-              className="btn btn-success"
-              style={{
-                textDecoration: 'none',
-                textAlign: 'center',
-                flex: '1',
-                minWidth: '120px',
-                fontSize: '17px',
-                padding: '14px 24px'
-              }}
+              className="btn btn-success btn-main"
             >
               下一节
             </Link>
           )}
-          <Link
-            to="/books"
-            className="btn btn-primary"
-            style={{ textDecoration: 'none', textAlign: 'center', padding: '12px 20px' }}
-          >
+          <Link to="/books" className="btn btn-primary">
             书籍列表
           </Link>
-          <Link
-            to="/history"
-            className="btn btn-secondary"
-            style={{ textDecoration: 'none', textAlign: 'center', padding: '12px 20px' }}
-          >
+          <Link to="/history" className="btn btn-secondary">
             历史记录
           </Link>
           <button
             className="btn btn-secondary"
             onClick={() => navigate(-1)}
-            style={{ padding: '12px 20px' }}
           >
             返回
           </button>

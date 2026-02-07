@@ -471,6 +471,30 @@ body {
   opacity: 0.6;
 }
 
+/* ========== 结果页操作栏 ========== */
+.result-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.result-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  text-align: center;
+  padding: 12px 20px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.result-actions .btn-main {
+  flex: 1;
+  font-size: 16px;
+  padding: 14px 24px;
+}
+
 /* ========== 首页样式 ========== */
 .home-hero {
   text-align: center;
@@ -859,6 +883,24 @@ body {
 
   .loading {
     padding: 40px;
+  }
+
+  /* 结果页操作栏响应式 */
+  .result-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .result-actions .btn-main {
+    grid-column: 1 / -1;
+    font-size: 16px;
+    padding: 14px 20px;
+  }
+
+  .result-actions .btn {
+    padding: 12px 16px;
+    font-size: 14px;
   }
 
   /* 认证表单响应式 */

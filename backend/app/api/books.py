@@ -303,7 +303,18 @@ def delete_book(
         .filter(models.Paragraph.book_id == book_id)
     )
 
-    # 批量删除测试结果（UserAnswer 通过级联删除自动处理）
+    # 获取该书籍关联的所有测试结果ID
+    test_result_ids_subquery = (
+        db.query(models.TestResult.id)
+        .filter(models.TestResult.paragraph_id.in_(paragraph_ids_subquery))
+    )
+
+    # 先删除 user_answers（query.delete 不会触发 ORM 级联）
+    db.query(models.UserAnswer).filter(
+        models.UserAnswer.test_result_id.in_(test_result_ids_subquery)
+    ).delete(synchronize_session=False)
+
+    # 再删除测试结果
     db.query(models.TestResult).filter(
         models.TestResult.paragraph_id.in_(paragraph_ids_subquery)
     ).delete(synchronize_session=False)

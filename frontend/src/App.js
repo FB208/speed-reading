@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
@@ -41,21 +41,21 @@ const Home = () => {
         
         {isAuthenticated ? (
           <div className="home-actions">
-            <a href="/books" className="btn btn-primary">
+            <Link to="/books" className="btn btn-primary">
               开始阅读
-            </a>
-            <a href="/upload" className="btn btn-secondary">
+            </Link>
+            <Link to="/upload" className="btn btn-secondary">
               上传书籍
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="home-actions">
-            <a href="/login" className="btn btn-primary">
+            <Link to="/login" className="btn btn-primary">
               登录
-            </a>
-            <a href="/register" className="btn btn-secondary">
+            </Link>
+            <Link to="/register" className="btn btn-secondary">
               注册
-            </a>
+            </Link>
           </div>
         )}
         
