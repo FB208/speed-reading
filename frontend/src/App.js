@@ -32,31 +32,16 @@ const Home = () => {
   
   return (
     <div className="container">
-      <div className="card" style={{ textAlign: 'center', padding: '60px 40px' }}>
-        <h1 style={{ 
-          fontSize: '36px', 
-          marginBottom: '20px', 
-          color: 'var(--text-heading)',
-          fontWeight: 600
-        }}>
-          快速阅读
-        </h1>
-        <p style={{ 
-          fontSize: '18px', 
-          color: 'var(--text-secondary)', 
-          marginBottom: '40px', 
-          lineHeight: '1.8',
-          maxWidth: '600px',
-          marginLeft: 'auto',
-          marginRight: 'auto'
-        }}>
+      <div className="card home-hero">
+        <h1 className="home-title">快速阅读</h1>
+        <p className="home-desc">
           测试你的阅读速度和理解能力<br />
           通过科学的阅读训练，提升你的阅读效率
         </p>
         
         {isAuthenticated ? (
-          <div>
-            <a href="/books" className="btn btn-primary" style={{ marginRight: '16px' }}>
+          <div className="home-actions">
+            <a href="/books" className="btn btn-primary">
               开始阅读
             </a>
             <a href="/upload" className="btn btn-secondary">
@@ -64,8 +49,8 @@ const Home = () => {
             </a>
           </div>
         ) : (
-          <div>
-            <a href="/login" className="btn btn-primary" style={{ marginRight: '16px' }}>
+          <div className="home-actions">
+            <a href="/login" className="btn btn-primary">
               登录
             </a>
             <a href="/register" className="btn btn-secondary">
@@ -74,81 +59,32 @@ const Home = () => {
           </div>
         )}
         
-        <div style={{ 
-          marginTop: '56px', 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(2, 1fr)', 
-          gap: '24px',
-          maxWidth: '700px',
-          marginLeft: 'auto',
-          marginRight: 'auto'
-        }}>
-          <div style={{ 
-            padding: '28px 20px',
-            backgroundColor: 'var(--paper-bg)',
-            borderRadius: '12px',
-            border: '1px solid var(--paper-dark)'
-          }}>
-            <div style={{ fontSize: '44px', marginBottom: '12px' }}>📚</div>
-            <h3 style={{ 
-              marginBottom: '10px',
-              color: 'var(--text-heading)',
-              fontSize: '17px'
-            }}>上传书籍</h3>
-            <p style={{ 
-              color: 'var(--text-secondary)', 
-              fontSize: '14px',
-              wordWrap: 'break-word',
-              lineHeight: '1.6'
-            }}>
+        <div className="home-features">
+          <div className="home-feature-card">
+            <div className="home-feature-icon">📚</div>
+            <h3 className="home-feature-title">上传书籍</h3>
+            <p className="home-feature-desc">
               支持 txt、docx、epub、mobi、pdf 格式
             </p>
           </div>
-          <div style={{ 
-            padding: '28px 20px',
-            backgroundColor: 'var(--paper-bg)',
-            borderRadius: '12px',
-            border: '1px solid var(--paper-dark)'
-          }}>
-            <div style={{ fontSize: '44px', marginBottom: '12px' }}>⏱️</div>
-            <h3 style={{ 
-              marginBottom: '10px',
-              color: 'var(--text-heading)',
-              fontSize: '17px'
-            }}>计时阅读</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+          <div className="home-feature-card">
+            <div className="home-feature-icon">⏱️</div>
+            <h3 className="home-feature-title">计时阅读</h3>
+            <p className="home-feature-desc">
               记录你的阅读速度
             </p>
           </div>
-          <div style={{ 
-            padding: '28px 20px',
-            backgroundColor: 'var(--paper-bg)',
-            borderRadius: '12px',
-            border: '1px solid var(--paper-dark)'
-          }}>
-            <div style={{ fontSize: '44px', marginBottom: '12px' }}>📝</div>
-            <h3 style={{ 
-              marginBottom: '10px',
-              color: 'var(--text-heading)',
-              fontSize: '17px'
-            }}>理解测试</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+          <div className="home-feature-card">
+            <div className="home-feature-icon">📝</div>
+            <h3 className="home-feature-title">理解测试</h3>
+            <p className="home-feature-desc">
               AI生成阅读理解题
             </p>
           </div>
-          <div style={{ 
-            padding: '28px 20px',
-            backgroundColor: 'var(--paper-bg)',
-            borderRadius: '12px',
-            border: '1px solid var(--paper-dark)'
-          }}>
-            <div style={{ fontSize: '44px', marginBottom: '12px' }}>📊</div>
-            <h3 style={{ 
-              marginBottom: '10px',
-              color: 'var(--text-heading)',
-              fontSize: '17px'
-            }}>统计分析</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+          <div className="home-feature-card">
+            <div className="home-feature-icon">📊</div>
+            <h3 className="home-feature-title">统计分析</h3>
+            <p className="home-feature-desc">
               追踪你的阅读进步
             </p>
           </div>
@@ -169,7 +105,7 @@ function App() {
           backgroundColor: 'var(--paper-bg)'
         }}>
           <Navbar />
-          <div style={{ flex: 1, padding: '24px 0' }}>
+          <div style={{ flex: 1, padding: '16px 0' }}>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />

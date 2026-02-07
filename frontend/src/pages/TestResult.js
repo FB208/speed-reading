@@ -77,10 +77,16 @@ const TestResult = () => {
   return (
     <div className="container">
       <div className="card">
-        <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>测试结果</h2>
+        <h2 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--text-heading)' }}>测试结果</h2>
 
         {/* 顶部操作按钮 - 最主要操作是"下一节" */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '32px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ 
+          display: 'flex', 
+          gap: '12px', 
+          marginBottom: '32px', 
+          flexWrap: 'wrap', 
+          alignItems: 'center' 
+        }}>
           {result && result.book_id && (
             <Link
               to={`/read/${result.book_id}`}
@@ -88,59 +94,33 @@ const TestResult = () => {
               style={{
                 textDecoration: 'none',
                 textAlign: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 flex: '1',
-                minWidth: '150px',
-                fontSize: '18px',
-                padding: '14px 24px',
-                height: '48px'
+                minWidth: '120px',
+                fontSize: '17px',
+                padding: '14px 24px'
               }}
             >
-              📖 下一节
+              下一节
             </Link>
           )}
           <Link
             to="/books"
             className="btn btn-primary"
-            style={{ 
-              textDecoration: 'none', 
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px 20px',
-              height: '48px'
-            }}
+            style={{ textDecoration: 'none', textAlign: 'center', padding: '12px 20px' }}
           >
             书籍列表
           </Link>
           <Link
             to="/history"
             className="btn btn-secondary"
-            style={{ 
-              textDecoration: 'none', 
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px 20px',
-              height: '48px'
-            }}
+            style={{ textDecoration: 'none', textAlign: 'center', padding: '12px 20px' }}
           >
             历史记录
           </Link>
           <button
             className="btn btn-secondary"
             onClick={() => navigate(-1)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px 20px',
-              height: '48px'
-            }}
+            style={{ padding: '12px 20px' }}
           >
             返回
           </button>
@@ -151,7 +131,7 @@ const TestResult = () => {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                 gap: '16px',
                 marginBottom: '24px'
               }}
@@ -159,88 +139,93 @@ const TestResult = () => {
               {/* 阅读速度 - 总是显示 */}
               <div
                 style={{
-                  background: '#f0f8ff',
+                  background: 'var(--accent-light-bg)',
                   padding: '20px',
                   borderRadius: '8px',
-                  textAlign: 'center'
+                  textAlign: 'center',
+                  border: '1px solid var(--paper-dark)'
                 }}
               >
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#1890ff' }}>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
                   {isSkipped ? (
-                    <span style={{ fontSize: '18px', color: '#999' }}>跳过测试</span>
+                    <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>跳过测试</span>
                   ) : (
                     result.words_per_minute
                   )}
                 </div>
-                <div style={{ color: '#666', marginTop: '8px' }}>阅读速度（字/分钟）</div>
+                <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>阅读速度（字/分钟）</div>
               </div>
 
               {/* 理解程度 - 仅在非跳过时显示 */}
               {!isSkipped && (
                 <div
                   style={{
-                    background: '#f6ffed',
+                    background: 'var(--success-light)',
                     padding: '20px',
                     borderRadius: '8px',
-                    textAlign: 'center'
+                    textAlign: 'center',
+                    border: '1px solid var(--paper-dark)'
                   }}
                 >
-                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#52c41a' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--success)' }}>
                     {result.comprehension_rate}%
                   </div>
-                  <div style={{ color: '#666', marginTop: '8px' }}>理解程度</div>
+                  <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>理解程度</div>
                 </div>
               )}
 
               {/* 阅读时长 - 总是显示 */}
               <div
                 style={{
-                  background: '#fff7e6',
+                  background: 'var(--warning-light)',
                   padding: '20px',
                   borderRadius: '8px',
-                  textAlign: 'center'
+                  textAlign: 'center',
+                  border: '1px solid var(--paper-dark)'
                 }}
               >
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#fa8c16' }}>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--warning)' }}>
                   {formatTime(isSkipped ? skippedData?.readingTimeSeconds || 0 : result.reading_time_seconds)}
                 </div>
-                <div style={{ color: '#666', marginTop: '8px' }}>阅读时长</div>
+                <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>阅读时长</div>
               </div>
 
               {/* 答对题数 - 仅在非跳过时显示 */}
               {!isSkipped && (
                 <div
                   style={{
-                    background: '#f9f0ff',
+                    background: 'var(--accent-purple-light)',
                     padding: '20px',
                     borderRadius: '8px',
-                    textAlign: 'center'
+                    textAlign: 'center',
+                    border: '1px solid var(--paper-dark)'
                   }}
                 >
-                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#722ed1' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-purple)' }}>
                     {result.correct_count}/{result.total_questions}
                   </div>
-                  <div style={{ color: '#666', marginTop: '8px' }}>答对题数</div>
+                  <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>答对题数</div>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        <h3 style={{ marginBottom: '16px' }}>答案详解</h3>
+        <h3 style={{ marginBottom: '16px', color: 'var(--text-heading)' }}>答案详解</h3>
 
         {isSkipped ? (
           <div style={{ 
             textAlign: 'center', 
             padding: '40px 20px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px'
+            backgroundColor: 'var(--paper-bg)',
+            borderRadius: '8px',
+            border: '1px solid var(--paper-dark)'
           }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏭️</div>
-            <p style={{ color: '#666', fontSize: '16px', margin: 0 }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '16px', margin: 0 }}>
               你已跳过测试，不显示答题详情
             </p>
-            <p style={{ color: '#999', fontSize: '14px', marginTop: '8px' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '8px' }}>
               阅读速度：已记录 | 理解程度：未测试
             </p>
           </div>
@@ -252,25 +237,28 @@ const TestResult = () => {
                 marginBottom: '20px',
                 padding: '16px',
                 borderRadius: '8px',
-                backgroundColor: item.is_correct ? '#f6ffed' : '#fff2f0',
-                border: `1px solid ${item.is_correct ? '#b7eb8f' : '#ffccc7'}`
+                backgroundColor: item.is_correct ? 'var(--success-light)' : 'var(--error-light)',
+                border: `1px solid ${item.is_correct ? 'var(--success)' : 'var(--error)'}`
               }}
             >
-              <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+              <p style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-heading)' }}>
                 {index + 1}. {item.question}
               </p>
-              <div style={{ paddingLeft: '16px' }}>
+              <div style={{ paddingLeft: '12px' }}>
                 {['A', 'B', 'C', 'D'].map((option) => (
                   <div
                     key={option}
                     style={{
-                      padding: '4px 8px',
+                      padding: '6px 10px',
                       marginBottom: '4px',
-                      borderRadius: '4px',
+                      borderRadius: '6px',
                       backgroundColor:
-                        option === item.correct_answer ? '#b7eb8f' :
-                        (option === item.user_answer && !item.is_correct) ? '#ffccc7' : 'transparent',
-                      fontWeight: option === item.correct_answer ? 'bold' : 'normal'
+                        option === item.correct_answer ? 'var(--success-light)' :
+                        (option === item.user_answer && !item.is_correct) ? 'var(--error-light)' : 'transparent',
+                      fontWeight: option === item.correct_answer ? 600 : 'normal',
+                      color: option === item.correct_answer ? 'var(--success)' : 
+                             (option === item.user_answer && !item.is_correct) ? 'var(--error)' : 'var(--text-primary)',
+                      border: option === item.correct_answer ? '1px solid var(--success)' : '1px solid transparent'
                     }}
                   >
                     {option}. {item.options[option]}
@@ -279,7 +267,7 @@ const TestResult = () => {
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: '8px', fontSize: '14px' }}>
+              <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 你的答案：{item.user_answer} | 正确答案：{item.correct_answer}
               </div>
             </div>

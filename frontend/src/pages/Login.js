@@ -42,19 +42,11 @@ const Login = () => {
 
   return (
     <div className="container">
-      <div className="card" style={{ maxWidth: '420px', margin: '60px auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📖</div>
-          <h2 style={{ 
-            color: 'var(--text-heading)',
-            fontSize: '24px',
-            marginBottom: '8px'
-          }}>
-            欢迎回来
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            登录以继续你的阅读之旅
-          </p>
+      <div className="card auth-card">
+        <div className="auth-header">
+          <div className="auth-icon">📖</div>
+          <h2 className="auth-title">欢迎回来</h2>
+          <p className="auth-subtitle">登录以继续你的阅读之旅</p>
         </div>
         
         {error && <div className="error-message" style={{ marginBottom: '20px' }}>{error}</div>}
@@ -96,20 +88,9 @@ const Login = () => {
           </button>
         </form>
         
-        <p style={{ 
-          textAlign: 'center', 
-          marginTop: '24px',
-          color: 'var(--text-secondary)',
-          fontSize: '14px'
-        }}>
+        <p className="auth-footer">
           还没有账号？{' '}
-          <Link to="/register" style={{ 
-            color: 'var(--accent-primary)',
-            textDecoration: 'none',
-            fontWeight: 500
-          }}>
-            立即注册
-          </Link>
+          <Link to="/register">立即注册</Link>
         </p>
       </div>
     </div>

@@ -112,7 +112,7 @@ const UploadBook = () => {
 
   return (
     <div className="container">
-      <div className="card" style={{ maxWidth: '600px', margin: '40px auto' }}>
+      <div className="card auth-card" style={{ maxWidth: '600px' }}>
         <h2 style={{ 
           marginBottom: '24px',
           color: 'var(--text-heading)',

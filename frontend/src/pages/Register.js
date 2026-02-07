@@ -55,19 +55,11 @@ const Register = () => {
 
   return (
     <div className="container">
-      <div className="card" style={{ maxWidth: '420px', margin: '60px auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>✨</div>
-          <h2 style={{ 
-            color: 'var(--text-heading)',
-            fontSize: '24px',
-            marginBottom: '8px'
-          }}>
-            创建账号
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            开始你的阅读训练之旅
-          </p>
+      <div className="card auth-card">
+        <div className="auth-header">
+          <div className="auth-icon">✨</div>
+          <h2 className="auth-title">创建账号</h2>
+          <p className="auth-subtitle">开始你的阅读训练之旅</p>
         </div>
         
         {error && <div className="error-message" style={{ marginBottom: '20px' }}>{error}</div>}
@@ -136,20 +128,9 @@ const Register = () => {
           </button>
         </form>
         
-        <p style={{ 
-          textAlign: 'center', 
-          marginTop: '24px',
-          color: 'var(--text-secondary)',
-          fontSize: '14px'
-        }}>
+        <p className="auth-footer">
           已有账号？{' '}
-          <Link to="/login" style={{ 
-            color: 'var(--accent-primary)',
-            textDecoration: 'none',
-            fontWeight: 500
-          }}>
-            立即登录
-          </Link>
+          <Link to="/login">立即登录</Link>
         </p>
       </div>
     </div>

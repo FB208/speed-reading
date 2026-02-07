@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { readingAPI } from '../services/api';
 
 const ReadingTest = () => {
   const { bookId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   
   const [paragraph, setParagraph] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -204,10 +203,10 @@ const ReadingTest = () => {
     return (
       <div className="container">
         <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <h2>恭喜！</h2>
-          <p style={{ margin: '20px 0' }}>你已经完成了这本书的所有段落</p>
+          <h2 style={{ color: 'var(--text-heading)' }}>恭喜！</h2>
+          <p style={{ margin: '20px 0', color: 'var(--text-secondary)' }}>你已经完成了这本书的所有段落</p>
           {progress && (
-            <p style={{ color: '#666' }}>
+            <p style={{ color: 'var(--text-secondary)' }}>
               完成进度：{progress.completed} / {progress.total}
             </p>
           )}
@@ -226,15 +225,15 @@ const ReadingTest = () => {
   return (
     <div className="container">
       {progress && (
-        <div style={{ marginBottom: '20px', color: '#666' }}>
+        <div style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '14px' }}>
           进度：{progress.completed} / {progress.total} 段落
         </div>
       )}
 
       {!isReading && !showQuestions && (
         <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <h3>准备开始阅读</h3>
-          <p style={{ margin: '20px 0', color: '#666' }}>
+          <h3 style={{ color: 'var(--text-heading)' }}>准备开始阅读</h3>
+          <p style={{ margin: '20px 0', color: 'var(--text-secondary)' }}>
             点击开始后，系统会记录你的阅读时间。
             <br />
             阅读完成后，需要回答5道理解题。
@@ -247,35 +246,15 @@ const ReadingTest = () => {
 
       {isReading && (
         <div className="card">
-          <div style={{
-            position: 'sticky',
-            top: '0',
-            backgroundColor: '#fff',
-            padding: '12px 0',
-            borderBottom: '2px solid #1890ff',
-            marginBottom: '20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            zIndex: '100'
-          }}>
-            <span style={{ fontSize: '14px', color: '#666' }}>阅读计时</span>
-            <span style={{ 
-              fontSize: '24px', 
-              fontWeight: 'bold', 
-              color: '#1890ff',
-              fontFamily: 'monospace'
-            }}>
-              ⏱️ {formatElapsedTime(elapsedTime)}
+          <div className="reading-timer">
+            <span className="reading-timer-label">阅读计时</span>
+            <span className="reading-timer-value">
+              {formatElapsedTime(elapsedTime)}
             </span>
           </div>
           <div 
             className="rich-text-content"
-            style={{ 
-              lineHeight: '1.8', 
-              fontSize: '18px',
-              marginBottom: '24px'
-            }}
+            style={{ marginBottom: '24px' }}
             dangerouslySetInnerHTML={{ __html: paragraph.content }}
           />
           <button 
@@ -297,47 +276,32 @@ const ReadingTest = () => {
             alignItems: 'center',
             marginBottom: '24px',
             paddingBottom: '16px',
-            borderBottom: '1px solid #e8e8e8'
+            borderBottom: '1px solid var(--paper-dark)',
+            flexWrap: 'wrap',
+            gap: '12px'
           }}>
-            <h3 style={{ margin: 0 }}>阅读理解测试</h3>
+            <h3 style={{ margin: 0, color: 'var(--text-heading)' }}>阅读理解测试</h3>
             <button
+              className="btn btn-danger"
               onClick={skipTest}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#ff4d4f',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                transition: 'all 0.3s'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#ff7875';
-                e.target.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '#ff4d4f';
-                e.target.style.transform = 'translateY(0)';
-              }}
+              style={{ fontSize: '14px', padding: '8px 16px' }}
             >
               跳过答题
             </button>
           </div>
           
           {questionsLoading && questionsStatus === 'generating' && (
-            <div style={{ textAlign: 'center', padding: '40px' }}>
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
               <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤔</div>
-              <p style={{ color: '#666', fontSize: '16px' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
                 AI正在根据文本内容生成问题...
                 <br />
-                <span style={{ fontSize: '14px' }}>请稍候，马上就好</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>请稍候，马上就好</span>
               </p>
               <div style={{ 
                 width: '200px', 
                 height: '4px', 
-                backgroundColor: '#f0f0f0',
+                backgroundColor: 'var(--paper-dark)',
                 margin: '20px auto',
                 borderRadius: '2px',
                 overflow: 'hidden'
@@ -345,13 +309,13 @@ const ReadingTest = () => {
                 <div style={{
                   width: '100%',
                   height: '100%',
-                  backgroundColor: '#1890ff',
-                  animation: 'loading 1.5s infinite ease-in-out',
+                  backgroundColor: 'var(--accent-primary)',
+                  animation: 'loadingBar 1.5s infinite ease-in-out',
                   transformOrigin: 'left'
                 }} />
               </div>
               <style>{`
-                @keyframes loading {
+                @keyframes loadingBar {
                   0% { transform: scaleX(0); }
                   50% { transform: scaleX(1); }
                   100% { transform: scaleX(0); transform-origin: right; }
@@ -364,20 +328,21 @@ const ReadingTest = () => {
             <>
               {questions.map((question, index) => (
                 <div key={question.id} style={{ marginBottom: '24px' }}>
-                  <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>
+                  <p style={{ fontWeight: 600, marginBottom: '12px', color: 'var(--text-heading)' }}>
                     {index + 1}. {question.question_text}
                   </p>
-                  <div style={{ paddingLeft: '20px' }}>
+                  <div style={{ paddingLeft: '12px' }}>
                     {['A', 'B', 'C', 'D'].map((option) => (
                       <label 
                         key={option}
+                        className="question-option"
                         style={{ 
-                          display: 'block', 
-                          marginBottom: '8px',
-                          cursor: 'pointer',
-                          padding: '8px',
-                          borderRadius: '4px',
-                          backgroundColor: answers[question.id] === option ? '#e6f7ff' : 'transparent'
+                          backgroundColor: answers[question.id] === option 
+                            ? 'rgba(122, 106, 90, 0.08)' 
+                            : 'transparent',
+                          borderColor: answers[question.id] === option 
+                            ? 'var(--accent-primary)' 
+                            : 'var(--paper-dark)'
                         }}
                       >
                         <input
@@ -386,7 +351,6 @@ const ReadingTest = () => {
                           value={option}
                           checked={answers[question.id] === option}
                           onChange={() => handleAnswerChange(question.id, option)}
-                          style={{ marginRight: '8px' }}
                         />
                         {option}. {question[`option_${option.toLowerCase()}`]}
                       </label>

@@ -104,15 +104,8 @@ const EditBook = () => {
 
   return (
     <div className="container">
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '24px',
-        flexWrap: 'wrap',
-        gap: '16px'
-      }}>
-        <div>
+      <div className="page-header" style={{ alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ 
             color: 'var(--text-heading)',
             fontSize: '24px',
@@ -122,12 +115,14 @@ const EditBook = () => {
           </h1>
           <h2 style={{ 
             color: 'var(--text-secondary)', 
-            fontSize: '17px'
+            fontSize: '17px',
+            fontWeight: 'normal',
+            wordBreak: 'break-word'
           }}>
             {book?.title}
           </h2>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flexShrink: 0 }}>
           <Link to="/books" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
             返回列表
           </Link>
@@ -182,18 +177,12 @@ const EditBook = () => {
               <textarea
                 value={editingContent}
                 onChange={(e) => setEditingContent(e.target.value)}
+                className="form-input"
                 style={{
-                  width: '100%',
-                  minHeight: '200px',
-                  padding: '16px',
-                  border: '1px solid var(--paper-dark)',
-                  borderRadius: '8px',
-                  fontSize: '16px',
+                  minHeight: '180px',
                   lineHeight: '1.8',
                   resize: 'vertical',
                   marginBottom: '16px',
-                  backgroundColor: 'var(--paper-card)',
-                  color: 'var(--text-primary)',
                   fontFamily: 'inherit'
                 }}
               />
