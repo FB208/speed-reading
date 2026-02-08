@@ -1,5 +1,9 @@
 import re
 import os
+import hashlib
+import shutil
+import posixpath
+from urllib.parse import unquote, urlparse
 from typing import List
 from docx import Document
 from sqlalchemy.orm import Session
@@ -11,11 +15,18 @@ class BookProcessor:
 
     def __init__(self, db: Session):
         self.db = db
+        self.uploads_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
+        )
+        self.book_images_root = os.path.join(self.uploads_dir, "book_images")
+        os.makedirs(self.book_images_root, exist_ok=True)
+        self._saved_image_map = {}
 
     async def process_book(self, book_id: int, file_path: str):
         """处理书籍文件"""
+        self._saved_image_map = {}
         # 读取文件内容（保留HTML格式）
-        content = self._read_file(file_path)
+        content = self._read_file(file_path, book_id)
 
         # 不再清理内容
         cleaned_content = content
@@ -39,7 +50,8 @@ class BookProcessor:
 
         # 更新书籍段落数
         book = self.db.query(models.Book).filter(models.Book.id == book_id).first()
-        book.total_paragraphs = len(paragraphs)
+        if book:
+            book.total_paragraphs = len(paragraphs)
 
         self.db.commit()
 
@@ -55,7 +67,7 @@ class BookProcessor:
             clean = re.sub(r"<[^>]+>", "", html_content)
             return clean
 
-    def _read_file(self, file_path: str) -> str:
+    def _read_file(self, file_path: str, book_id: int) -> str:
         """读取文件内容"""
         file_ext = os.path.splitext(file_path)[1].lower()
 
@@ -76,10 +88,10 @@ class BookProcessor:
             return self._read_docx_with_format(file_path)
 
         elif file_ext == ".epub":
-            return self._read_epub_with_format(file_path)
+            return self._read_epub_with_format(file_path, book_id)
 
         elif file_ext == ".mobi":
-            return self._read_mobi_with_format(file_path)
+            return self._read_mobi_with_format(file_path, book_id)
 
         elif file_ext == ".pdf":
             return self._read_pdf(file_path)
@@ -161,8 +173,8 @@ class BookProcessor:
                 [f"<p>{p.text}</p>" for p in doc.paragraphs if p.text.strip()]
             )
 
-    def _read_epub_with_format(self, file_path: str) -> str:
-        """读取EPUB文件并保留HTML格式"""
+    def _read_epub_with_format(self, file_path: str, book_id: int) -> str:
+        """读取EPUB文件并保留HTML格式（包含图片）"""
         try:
             import ebooklib
             from ebooklib import epub
@@ -170,30 +182,53 @@ class BookProcessor:
 
             book = epub.read_epub(file_path)
             html_parts = []
+            image_items = {}
 
-            # 遍历所有文档项
             for item in book.get_items():
-                if item.get_type() == ebooklib.ITEM_DOCUMENT:
-                    # 保留原始HTML内容
-                    content = item.get_content().decode("utf-8", errors="ignore")
-                    soup = BeautifulSoup(content, "html.parser")
+                if item.get_type() == ebooklib.ITEM_IMAGE:
+                    item_name = self._normalize_epub_path(item.get_name())
+                    image_items[item_name] = item
 
-                    # 移除script、style和img标签
-                    for tag in soup(["script", "style", "img", "image", "svg"]):
-                        tag.decompose()
+            for item in book.get_items():
+                if item.get_type() != ebooklib.ITEM_DOCUMENT:
+                    continue
 
-                    # 获取body内容，如果没有body则获取整个内容
-                    body = soup.find("body")
-                    if body:
-                        html_parts.append(str(body))
-                    else:
-                        html_parts.append(str(soup))
+                content = item.get_content().decode("utf-8", errors="ignore")
+                soup = BeautifulSoup(content, "html.parser")
+
+                for tag in soup(["script", "style", "svg"]):
+                    tag.decompose()
+
+                doc_name = self._normalize_epub_path(item.get_name())
+                for img in soup.find_all("img"):
+                    src = (img.get("src") or "").strip()
+                    if not src or self._is_external_image(src):
+                        continue
+
+                    image_item = self._resolve_epub_image_item(
+                        src, doc_name, image_items
+                    )
+                    if not image_item:
+                        continue
+
+                    image_url = self._save_image_bytes(
+                        book_id=book_id,
+                        source_name=image_item.get_name(),
+                        image_data=image_item.get_content(),
+                    )
+                    if image_url:
+                        img["src"] = image_url
+                        if img.has_attr("srcset"):
+                            del img["srcset"]
+
+                body = soup.find("body")
+                html_parts.append(str(body) if body else str(soup))
 
             return "\n".join(html_parts)
         except Exception as e:
             raise Exception(f"读取EPUB文件失败: {str(e)}")
 
-    def _read_mobi_with_format(self, file_path: str) -> str:
+    def _read_mobi_with_format(self, file_path: str, book_id: int) -> str:
         """读取MOBI文件并保留HTML格式"""
         try:
             import mobi
@@ -202,25 +237,126 @@ class BookProcessor:
             # 使用mobi库提取内容
             tempdir, filepath = mobi.extract(file_path)
 
-            # 读取提取的HTML文件
-            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
 
-            # 清理临时文件
-            import shutil
+                soup = BeautifulSoup(content, "html.parser")
 
-            shutil.rmtree(tempdir, ignore_errors=True)
+                for tag in soup(["script", "style", "svg"]):
+                    tag.decompose()
 
-            # 解析并清理HTML
-            soup = BeautifulSoup(content, "html.parser")
+                html_dir = os.path.dirname(filepath)
+                tempdir_abs = os.path.abspath(tempdir)
+                for img in soup.find_all("img"):
+                    src = (img.get("src") or "").strip()
+                    if not src or self._is_external_image(src):
+                        continue
 
-            # 移除script、style和img标签
-            for tag in soup(["script", "style", "img", "image", "svg"]):
-                tag.decompose()
+                    parsed = urlparse(src)
+                    relative_path = unquote(parsed.path).lstrip("/")
+                    if not relative_path:
+                        continue
 
-            return str(soup)
+                    image_path = os.path.normpath(os.path.join(html_dir, relative_path))
+                    if not os.path.exists(image_path):
+                        image_path = os.path.normpath(
+                            os.path.join(tempdir, relative_path)
+                        )
+                    image_path_abs = os.path.abspath(image_path)
+                    if os.path.commonpath([tempdir_abs, image_path_abs]) != tempdir_abs:
+                        continue
+                    if not os.path.isfile(image_path_abs):
+                        continue
+
+                    with open(image_path_abs, "rb") as image_file:
+                        image_data = image_file.read()
+
+                    image_url = self._save_image_bytes(
+                        book_id=book_id,
+                        source_name=os.path.basename(image_path_abs),
+                        image_data=image_data,
+                    )
+                    if image_url:
+                        img["src"] = image_url
+                        if img.has_attr("srcset"):
+                            del img["srcset"]
+
+                return str(soup)
+            finally:
+                shutil.rmtree(tempdir, ignore_errors=True)
         except Exception as e:
             raise Exception(f"读取MOBI文件失败: {str(e)}")
+
+    def _normalize_epub_path(self, path: str) -> str:
+        return posixpath.normpath((path or "").replace("\\", "/")).lstrip("./")
+
+    def _resolve_epub_image_item(self, src: str, doc_name: str, image_items: dict):
+        src_path = self._normalize_epub_path(urlparse(src).path)
+        if not src_path:
+            return None
+
+        doc_dir = posixpath.dirname(doc_name)
+        candidates = [
+            self._normalize_epub_path(posixpath.join(doc_dir, src_path)),
+            src_path,
+        ]
+
+        for candidate in candidates:
+            if candidate in image_items:
+                return image_items[candidate]
+
+        basename = posixpath.basename(src_path)
+        for name, item in image_items.items():
+            if posixpath.basename(name) == basename:
+                return item
+        return None
+
+    def _is_external_image(self, src: str) -> bool:
+        normalized = src.lower().strip()
+        return normalized.startswith(("http://", "https://", "data:", "/book-images/"))
+
+    def _guess_image_ext(self, source_name: str, image_data: bytes) -> str:
+        ext = os.path.splitext(source_name or "")[1].lower()
+        if ext in [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"]:
+            return ext
+        if image_data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return ".png"
+        if image_data.startswith(b"\xff\xd8"):
+            return ".jpg"
+        if image_data.startswith(b"GIF8"):
+            return ".gif"
+        if image_data.startswith(b"RIFF"):
+            return ".webp"
+        if image_data.startswith(b"BM"):
+            return ".bmp"
+        return ".jpg"
+
+    def _save_image_bytes(
+        self, book_id: int, source_name: str, image_data: bytes
+    ) -> str:
+        if not image_data:
+            return ""
+
+        digest = hashlib.md5(image_data).hexdigest()
+        cache_key = f"{book_id}:{digest}"
+        if cache_key in self._saved_image_map:
+            return self._saved_image_map[cache_key]
+
+        ext = self._guess_image_ext(source_name, image_data)
+        filename = f"img_{digest[:16]}{ext}"
+        book_dir_name = f"book_{book_id}"
+        book_dir = os.path.join(self.book_images_root, book_dir_name)
+        os.makedirs(book_dir, exist_ok=True)
+        file_path = os.path.join(book_dir, filename)
+
+        if not os.path.exists(file_path):
+            with open(file_path, "wb") as f:
+                f.write(image_data)
+
+        url = f"/book-images/{book_dir_name}/{filename}"
+        self._saved_image_map[cache_key] = url
+        return url
 
     def _read_pdf(self, file_path: str) -> str:
         """读取PDF文件（PDF不支持富文本格式）"""
@@ -269,7 +405,20 @@ class BookProcessor:
             # 获取所有顶级元素
             elements = []
             for elem in soup.find_all(
-                ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote"]
+                [
+                    "p",
+                    "div",
+                    "h1",
+                    "h2",
+                    "h3",
+                    "h4",
+                    "h5",
+                    "h6",
+                    "li",
+                    "blockquote",
+                    "figure",
+                    "img",
+                ]
             ):
                 if elem.parent.name in [
                     "body",

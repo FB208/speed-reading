@@ -113,8 +113,11 @@ app.include_router(bookshelf.router)
 # 静态文件服务（封面图片）
 uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
 covers_dir = os.path.join(uploads_dir, "covers")
+book_images_dir = os.path.join(uploads_dir, "book_images")
 os.makedirs(covers_dir, exist_ok=True)
+os.makedirs(book_images_dir, exist_ok=True)
 app.mount("/covers", StaticFiles(directory=covers_dir), name="covers")
+app.mount("/book-images", StaticFiles(directory=book_images_dir), name="book-images")
 
 
 @app.get("/")

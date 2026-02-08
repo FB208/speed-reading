@@ -312,6 +312,15 @@ body {
   margin: 10px 0;
 }
 
+.rich-text-content img,
+.rich-text-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 18px auto;
+  border-radius: 8px;
+}
+
 /* ========== 导航栏样式 ========== */
 .navbar {
   background-color: var(--paper-card);

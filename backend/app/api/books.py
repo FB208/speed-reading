@@ -17,8 +17,10 @@ router = APIRouter(prefix="/books", tags=["书籍"])
 # 确保上传目录存在
 UPLOAD_DIR = "uploads"
 COVERS_DIR = os.path.join(UPLOAD_DIR, "covers")
+BOOK_IMAGES_DIR = os.path.join(UPLOAD_DIR, "book_images")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(COVERS_DIR, exist_ok=True)
+os.makedirs(BOOK_IMAGES_DIR, exist_ok=True)
 
 
 def serialize_book(book: models.Book, current_user: models.User) -> dict:
@@ -138,6 +140,9 @@ async def upload_book(
         db.delete(db_book)
         db.commit()
         os.remove(file_path)
+        shutil.rmtree(
+            os.path.join(BOOK_IMAGES_DIR, f"book_{db_book.id}"), ignore_errors=True
+        )
         if cover_image:
             cover_extractor.delete_cover(cover_image)
         raise HTTPException(
@@ -367,3 +372,10 @@ def delete_book(
             cover_extractor.delete_cover(cover_image)
         except Exception as e:
             print(f"删除封面失败: {str(e)}")
+
+    try:
+        shutil.rmtree(
+            os.path.join(BOOK_IMAGES_DIR, f"book_{book_id}"), ignore_errors=True
+        )
+    except Exception as e:
+        print(f"删除正文图片失败: {str(e)}")
