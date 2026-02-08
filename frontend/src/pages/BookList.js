@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { booksAPI } from '../services/api';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = process.env.REACT_APP_API_BASE_URL ?? '';
 
 const BookList = () => {
   const [books, setBooks] = useState([]);
@@ -27,7 +27,8 @@ const BookList = () => {
   const getCoverUrl = (coverImage) => {
     if (!coverImage) return null;
     if (coverImage.startsWith('http')) return coverImage;
-    return `${API_BASE}/${coverImage}`;
+    const normalizedBase = API_BASE.replace(/\/+$/, '');
+    return `${normalizedBase}/${coverImage}`;
   };
 
   if (loading) {

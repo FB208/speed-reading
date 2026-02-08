@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -70,9 +71,10 @@ app.include_router(reading.router)
 # 静态文件服务（封面图片）
 import os
 
-covers_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "covers")
-if os.path.exists(covers_dir):
-    app.mount("/covers", StaticFiles(directory=covers_dir), name="covers")
+uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
+covers_dir = os.path.join(uploads_dir, "covers")
+os.makedirs(covers_dir, exist_ok=True)
+app.mount("/covers", StaticFiles(directory=covers_dir), name="covers")
 
 
 @app.get("/")
