@@ -4,7 +4,7 @@ from sqlalchemy import func
 from typing import List, Optional
 from app.db.database import get_db
 from app.models import models, schemas
-from app.api.deps import get_current_user
+from app.api.deps import ensure_book_in_bookshelf, get_current_user
 from app.services.ai_service import AIService
 import threading
 import time
@@ -35,8 +35,13 @@ def generate_questions_async(
                 .count()
             )
             if existing_count > 0:
-                print(f"[异步生成] 段落{paragraph_id}已有{existing_count}道问题，跳过生成")
-                generating_tasks[paragraph_id] = {"status": "completed", "progress": 100}
+                print(
+                    f"[异步生成] 段落{paragraph_id}已有{existing_count}道问题，跳过生成"
+                )
+                generating_tasks[paragraph_id] = {
+                    "status": "completed",
+                    "progress": 100,
+                }
                 return
 
             # 标记为正在生成
@@ -86,6 +91,12 @@ def get_next_paragraph(
     current_user: models.User = Depends(get_current_user),
 ):
     """获取下一篇未读的段落（不包含问题，立即返回）"""
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
+
+    ensure_book_in_bookshelf(db, current_user.id, book_id)
+
     # 查找用户已完成的段落ID
     completed_paragraph_ids = [
         progress.paragraph_id
@@ -138,7 +149,10 @@ def get_next_paragraph(
     with generating_lock:
         if existing_questions == 0 and next_paragraph.id not in generating_tasks:
             print(f"[获取段落] 段落{next_paragraph.id}没有问题，启动异步生成")
-            generating_tasks[next_paragraph.id] = {"status": "generating", "progress": 0}
+            generating_tasks[next_paragraph.id] = {
+                "status": "generating",
+                "progress": 0,
+            }
             thread = threading.Thread(
                 target=generate_questions_async,
                 args=(next_paragraph.id, next_paragraph.content, None),
@@ -262,7 +276,10 @@ def get_questions(
             # 重新启动生成（使用锁保护）
             with generating_lock:
                 if paragraph_id not in generating_tasks:
-                    generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
+                    generating_tasks[paragraph_id] = {
+                        "status": "generating",
+                        "progress": 0,
+                    }
                     thread = threading.Thread(
                         target=generate_questions_async,
                         args=(paragraph_id, paragraph.content, None),
@@ -282,7 +299,8 @@ def get_questions(
             print(f"[获取问题] 段落{paragraph_id}没有任务，启动生成")
             generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
             thread = threading.Thread(
-                target=generate_questions_async, args=(paragraph_id, paragraph.content, None)
+                target=generate_questions_async,
+                args=(paragraph_id, paragraph.content, None),
             )
             thread.daemon = True
             thread.start()
@@ -434,19 +452,21 @@ def get_test_results(
                 .filter(models.Book.id == paragraph.book_id)
                 .first()
             )
-        
-        response.append({
-            "id": result.id,
-            "paragraph_id": result.paragraph_id,
-            "reading_time_seconds": result.reading_time_seconds,
-            "words_per_minute": result.words_per_minute,
-            "correct_count": result.correct_count,
-            "total_questions": result.total_questions,
-            "comprehension_rate": result.comprehension_rate,
-            "created_at": result.created_at,
-            "book_id": book.id if book else None,
-            "book_title": book.title if book else "未知书籍",
-        })
+
+        response.append(
+            {
+                "id": result.id,
+                "paragraph_id": result.paragraph_id,
+                "reading_time_seconds": result.reading_time_seconds,
+                "words_per_minute": result.words_per_minute,
+                "correct_count": result.correct_count,
+                "total_questions": result.total_questions,
+                "comprehension_rate": result.comprehension_rate,
+                "created_at": result.created_at,
+                "book_id": book.id if book else None,
+                "book_title": book.title if book else "未知书籍",
+            }
+        )
 
     return response
 
@@ -459,14 +479,16 @@ def get_test_result_detail(
 ):
     """获取测试详情（包含正确答案）"""
     print(f"[获取结果详情] 查询 result_id={result_id}, user_id={current_user.id}")
-    
+
     # 先不带用户过滤查询，看记录是否存在
-    result_any = db.query(models.TestResult).filter(models.TestResult.id == result_id).first()
+    result_any = (
+        db.query(models.TestResult).filter(models.TestResult.id == result_id).first()
+    )
     if result_any:
         print(f"[获取结果详情] 记录存在，属于 user_id={result_any.user_id}")
     else:
         print(f"[获取结果详情] 记录 id={result_id} 不存在")
-    
+
     result = (
         db.query(models.TestResult)
         .filter(
@@ -538,32 +560,32 @@ def delete_book_test_results(
     """删除某本书的所有测试记录"""
     # 获取该书籍的所有段落ID
     paragraph_ids = [
-        p.id for p in db.query(models.Paragraph)
+        p.id
+        for p in db.query(models.Paragraph)
         .filter(models.Paragraph.book_id == book_id)
         .all()
     ]
-    
+
     if not paragraph_ids:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
+
     # 获取该用户在这本书中的所有测试结果ID
     test_result_ids = [
-        r.id for r in db.query(models.TestResult.id)
+        r.id
+        for r in db.query(models.TestResult.id)
         .filter(
             models.TestResult.user_id == current_user.id,
             models.TestResult.paragraph_id.in_(paragraph_ids),
         )
         .all()
     ]
-    
+
     # 先删除关联的用户答案记录（避免外键约束冲突）
     if test_result_ids:
         db.query(models.UserAnswer).filter(
             models.UserAnswer.test_result_id.in_(test_result_ids)
         ).delete(synchronize_session=False)
-    
+
     # 再删除测试结果
     deleted_count = (
         db.query(models.TestResult)
@@ -573,16 +595,20 @@ def delete_book_test_results(
         )
         .delete(synchronize_session=False)
     )
-    
+
     # 同时删除阅读进度
     db.query(models.ReadingProgress).filter(
         models.ReadingProgress.user_id == current_user.id,
         models.ReadingProgress.book_id == book_id,
     ).delete(synchronize_session=False)
-    
+
     db.commit()
 
-    return {"message": f"已删除 {deleted_count} 条记录", "book_id": book_id, "deleted_count": deleted_count}
+    return {
+        "message": f"已删除 {deleted_count} 条记录",
+        "book_id": book_id,
+        "deleted_count": deleted_count,
+    }
 
 
 @router.delete("/results/{result_id}")

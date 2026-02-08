@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
+import os
+import shutil
+from datetime import datetime
 from typing import List, Optional
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import can_manage_book, ensure_book_in_bookshelf, get_current_user
 from app.db.database import get_db
 from app.models import models, schemas
 from app.services.book_processor import BookProcessor
 from app.utils.cover_extractor import CoverExtractor
-from app.api.deps import get_current_user
-import os
-import shutil
-from datetime import datetime
 
 router = APIRouter(prefix="/books", tags=["书籍"])
 
@@ -17,6 +19,25 @@ UPLOAD_DIR = "uploads"
 COVERS_DIR = os.path.join(UPLOAD_DIR, "covers")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(COVERS_DIR, exist_ok=True)
+
+
+def serialize_book(book: models.Book, current_user: models.User) -> dict:
+    """构建书籍响应数据"""
+    uploaded_by_username = book.uploader.username if book.uploader else None
+    is_uploaded_by_me = book.uploaded_by_user_id == current_user.id
+    return {
+        "id": book.id,
+        "title": book.title,
+        "author": book.author,
+        "filename": book.filename,
+        "cover_image": book.cover_image,
+        "total_paragraphs": book.total_paragraphs,
+        "created_at": book.created_at,
+        "uploaded_by_user_id": book.uploaded_by_user_id,
+        "uploaded_by_username": uploaded_by_username,
+        "is_uploaded_by_me": is_uploaded_by_me,
+        "can_manage": current_user.is_admin or is_uploaded_by_me,
+    }
 
 
 @router.get("/", response_model=List[schemas.BookResponse])
@@ -28,7 +49,7 @@ def get_books(
 ):
     """获取书籍列表"""
     books = db.query(models.Book).offset(skip).limit(limit).all()
-    return books
+    return [serialize_book(book, current_user) for book in books]
 
 
 @router.get("/{book_id}", response_model=schemas.BookResponse)
@@ -41,7 +62,7 @@ def get_book(
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
-    return book
+    return serialize_book(book, current_user)
 
 
 @router.post("/upload", response_model=schemas.BookResponse)
@@ -49,12 +70,11 @@ async def upload_book(
     file: UploadFile = File(...),
     title: Optional[str] = None,
     author: Optional[str] = None,
-    cover: Optional[UploadFile] = File(None),  # 可选的封面上传
+    cover: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     """上传书籍文件（支持手动上传封面或自动提取）"""
-    # 检查文件类型
     allowed_extensions = (".txt", ".docx", ".epub", ".mobi", ".pdf")
     if not file.filename or not file.filename.lower().endswith(allowed_extensions):
         raise HTTPException(
@@ -62,12 +82,10 @@ async def upload_book(
             detail=f"仅支持 {', '.join(allowed_extensions)} 格式的文件",
         )
 
-    # 生成唯一文件名
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_filename = f"{timestamp}_{file.filename}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
-    # 保存文件
     try:
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -79,16 +97,13 @@ async def upload_book(
     finally:
         file.file.close()
 
-    # 如果没有提供标题，使用文件名（不含扩展名）
     if not title:
         title = os.path.splitext(file.filename)[0]
 
-    # 处理封面
     cover_extractor = CoverExtractor(COVERS_DIR)
     cover_image = None
 
     try:
-        # 如果有手动上传的封面
         manual_cover_data = None
         manual_cover_filename = None
         if cover and cover.filename:
@@ -96,7 +111,6 @@ async def upload_book(
             manual_cover_filename = cover.filename
             cover.file.close()
 
-        # 提取或保存封面
         cover_image = cover_extractor.extract_cover(
             file_path,
             manual_cover=manual_cover_data,
@@ -104,26 +118,23 @@ async def upload_book(
         )
     except Exception as e:
         print(f"封面处理失败: {str(e)}")
-        # 封面处理失败不影响书籍上传
 
-    # 创建书籍记录
     db_book = models.Book(
         title=title,
         author=author,
         filename=safe_filename,
         cover_image=cover_image,
         total_paragraphs=0,
+        uploaded_by_user_id=current_user.id,
     )
     db.add(db_book)
     db.commit()
     db.refresh(db_book)
 
-    # 异步处理书籍内容
     try:
         processor = BookProcessor(db)
         await processor.process_book(db_book.id, file_path)
     except Exception as e:
-        # 如果处理失败，删除书籍记录、文件和封面
         db.delete(db_book)
         db.commit()
         os.remove(file_path)
@@ -134,7 +145,9 @@ async def upload_book(
             detail=f"书籍处理失败: {str(e)}",
         )
 
-    return db_book
+    ensure_book_in_bookshelf(db, current_user.id, db_book.id)
+    db.refresh(db_book)
+    return serialize_book(db_book, current_user)
 
 
 @router.get("/{book_id}/paragraphs", response_model=List[schemas.ParagraphResponse])
@@ -197,6 +210,14 @@ def update_paragraph(
     current_user: models.User = Depends(get_current_user),
 ):
     """更新段落内容"""
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
+    if not can_manage_book(current_user, book):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权限修改此书籍"
+        )
+
     paragraph = (
         db.query(models.Paragraph)
         .filter(
@@ -208,7 +229,6 @@ def update_paragraph(
     if not paragraph:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    # 更新内容和字数
     paragraph.content = content
     paragraph.word_count = len(content)
     db.commit()
@@ -227,6 +247,14 @@ def delete_paragraph(
     current_user: models.User = Depends(get_current_user),
 ):
     """删除段落"""
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
+    if not can_manage_book(current_user, book):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权限删除此书籍"
+        )
+
     paragraph = (
         db.query(models.Paragraph)
         .filter(
@@ -238,46 +266,37 @@ def delete_paragraph(
     if not paragraph:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    # 获取被删除段落的序号
     deleted_sequence = paragraph.sequence
 
-    # 批量删除相关的测试结果（UserAnswer 会通过级联删除自动处理）
     db.query(models.TestResult).filter(
         models.TestResult.paragraph_id == paragraph_id
     ).delete(synchronize_session=False)
 
-    # 批量删除阅读进度
     db.query(models.ReadingProgress).filter(
         models.ReadingProgress.paragraph_id == paragraph_id
     ).delete(synchronize_session=False)
 
-    # 删除问题（通过段落的级联删除自动处理，但为确保先手动删除）
     db.query(models.Question).filter(
         models.Question.paragraph_id == paragraph_id
     ).delete(synchronize_session=False)
 
-    # 删除段落
     db.delete(paragraph)
 
-    # 只更新序号大于被删除段落的记录（而不是全部重新排序）
     db.query(models.Paragraph).filter(
         models.Paragraph.book_id == book_id,
-        models.Paragraph.sequence > deleted_sequence
+        models.Paragraph.sequence > deleted_sequence,
     ).update(
         {models.Paragraph.sequence: models.Paragraph.sequence - 1},
-        synchronize_session=False
+        synchronize_session=False,
     )
 
-    # 更新书籍段落数
-    book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if book:
         book.total_paragraphs = (
             db.query(models.Paragraph)
             .filter(models.Paragraph.book_id == book_id)
             .count()
-        ) - 1  # 减1因为当前段落还未真正删除
+        ) - 1
 
-    # 一次性提交所有更改
     db.commit()
 
 
@@ -292,53 +311,49 @@ def delete_book(
 
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
+    if not can_manage_book(current_user, book):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权限删除此书籍"
+        )
 
-    # 获取封面路径和文件名（在删除前保存）
     cover_image = book.cover_image
     filename = book.filename
 
-    # 获取所有段落ID（使用子查询）
-    paragraph_ids_subquery = (
-        db.query(models.Paragraph.id)
-        .filter(models.Paragraph.book_id == book_id)
+    paragraph_ids_subquery = db.query(models.Paragraph.id).filter(
+        models.Paragraph.book_id == book_id
     )
 
-    # 获取该书籍关联的所有测试结果ID
-    test_result_ids_subquery = (
-        db.query(models.TestResult.id)
-        .filter(models.TestResult.paragraph_id.in_(paragraph_ids_subquery))
+    test_result_ids_subquery = db.query(models.TestResult.id).filter(
+        models.TestResult.paragraph_id.in_(paragraph_ids_subquery)
     )
 
-    # 先删除 user_answers（query.delete 不会触发 ORM 级联）
     db.query(models.UserAnswer).filter(
         models.UserAnswer.test_result_id.in_(test_result_ids_subquery)
     ).delete(synchronize_session=False)
 
-    # 再删除测试结果
     db.query(models.TestResult).filter(
         models.TestResult.paragraph_id.in_(paragraph_ids_subquery)
     ).delete(synchronize_session=False)
 
-    # 批量删除阅读进度
     db.query(models.ReadingProgress).filter(
         models.ReadingProgress.book_id == book_id
     ).delete(synchronize_session=False)
 
-    # 批量删除问题
     db.query(models.Question).filter(
         models.Question.paragraph_id.in_(paragraph_ids_subquery)
     ).delete(synchronize_session=False)
 
-    # 批量删除所有段落
-    db.query(models.Paragraph).filter(
-        models.Paragraph.book_id == book_id
+    db.query(models.Paragraph).filter(models.Paragraph.book_id == book_id).delete(
+        synchronize_session=False
+    )
+
+    db.query(models.BookshelfItem).filter(
+        models.BookshelfItem.book_id == book_id
     ).delete(synchronize_session=False)
 
-    # 删除书籍记录
     db.delete(book)
     db.commit()
 
-    # 删除书籍文件（在事务提交后进行）
     try:
         file_path = os.path.join(UPLOAD_DIR, filename)
         if os.path.exists(file_path):
@@ -346,11 +361,9 @@ def delete_book(
     except Exception as e:
         print(f"删除文件失败: {str(e)}")
 
-    # 删除封面图片
     if cover_image:
         try:
             cover_extractor = CoverExtractor(COVERS_DIR)
             cover_extractor.delete_cover(cover_image)
         except Exception as e:
             print(f"删除封面失败: {str(e)}")
-

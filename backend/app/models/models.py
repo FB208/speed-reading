@@ -7,6 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     Boolean,
     Float,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -22,10 +23,13 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
 
     # 关系
     reading_progress = relationship("ReadingProgress", back_populates="user")
     test_results = relationship("TestResult", back_populates="user")
+    uploaded_books = relationship("Book", back_populates="uploader")
+    bookshelf_items = relationship("BookshelfItem", back_populates="user")
 
 
 class Book(Base):
@@ -38,11 +42,30 @@ class Book(Base):
     cover_image = Column(String(255), nullable=True)  # 封面图片路径
     total_paragraphs = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # 关系
     paragraphs = relationship(
         "Paragraph", back_populates="book", cascade="all, delete-orphan"
     )
+    uploader = relationship("User", back_populates="uploaded_books")
+    bookshelf_items = relationship("BookshelfItem", back_populates="book")
+
+
+class BookshelfItem(Base):
+    __tablename__ = "bookshelf_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="uq_bookshelf_user_book"),
+    )
+
+    user = relationship("User", back_populates="bookshelf_items")
+    book = relationship("Book", back_populates="bookshelf_items")
 
 
 class Paragraph(Base):

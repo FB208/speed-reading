@@ -111,6 +111,14 @@ export const booksAPI = {
     api.delete(`/books/${bookId}`),
 };
 
+export const bookshelfAPI = {
+  getMyBookshelf: (skip = 0, limit = 100) =>
+    api.get(`/bookshelf/?skip=${skip}&limit=${limit}`),
+
+  removeFromBookshelf: (bookId) =>
+    api.delete(`/bookshelf/${bookId}`),
+};
+
 // 阅读测试相关API
 export const readingAPI = {
   getNextParagraph: (bookId) => 

@@ -44,6 +44,9 @@ const Navbar = () => {
               <Link to="/books" className="navbar-link" onClick={handleLinkClick}>
                 书籍列表
               </Link>
+              <Link to="/bookshelf" className="navbar-link" onClick={handleLinkClick}>
+                我的书架
+              </Link>
               <Link to="/upload" className="navbar-link" onClick={handleLinkClick}>
                 上传书籍
               </Link>

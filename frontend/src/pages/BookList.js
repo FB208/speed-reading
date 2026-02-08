@@ -88,7 +88,13 @@ const BookList = () => {
                   <p className="book-meta">
                     共 {book.total_paragraphs} 个段落
                   </p>
-                  
+
+                  <p className="book-meta">
+                    {book.is_uploaded_by_me
+                      ? '我上传的'
+                      : `上传者：${book.uploaded_by_username || '未知用户'}`}
+                  </p>
+                   
                   <div className="book-actions">
                     <Link 
                       to={`/read/${book.id}`} 
@@ -96,12 +102,14 @@ const BookList = () => {
                     >
                       开始阅读
                     </Link>
-                    <Link 
-                      to={`/edit/${book.id}`} 
-                      className="btn btn-secondary"
-                    >
-                      编辑
-                    </Link>
+                    {book.can_manage && (
+                      <Link 
+                        to={`/edit/${book.id}`} 
+                        className="btn btn-secondary"
+                      >
+                        编辑
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>

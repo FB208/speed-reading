@@ -16,6 +16,7 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     id: int
     created_at: datetime
+    is_admin: bool
 
     class Config:
         from_attributes = True
@@ -51,6 +52,10 @@ class BookResponse(BookBase):
     cover_image: Optional[str] = None
     total_paragraphs: int
     created_at: datetime
+    uploaded_by_user_id: int
+    uploaded_by_username: Optional[str] = None
+    is_uploaded_by_me: bool = False
+    can_manage: bool = False
 
     class Config:
         from_attributes = True
@@ -132,3 +137,9 @@ class TestResultResponse(BaseModel):
 
 class TestResultDetail(TestResultResponse):
     answers: List[dict]
+
+
+class BookshelfBookResponse(BookResponse):
+    completed_paragraphs: int
+    progress_percentage: float
+    bookshelf_added_at: Optional[datetime] = None

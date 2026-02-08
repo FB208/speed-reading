@@ -1,45 +1,86 @@
 import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import inspect, text
-from app.api import auth, books, reading
-from app.db.database import engine, Base
+
+from app.api import auth, books, reading, bookshelf
+from app.core.config import settings
+from app.core.security import hash_password
+from app.db.database import Base, SessionLocal, engine
+from app.models import models
+
+
+def sync_admin_user() -> None:
+    """同步管理员账号（每次启动执行）"""
+    admin_username = settings.ADMIN_USERNAME.strip()
+    admin_password = settings.ADMIN_PASSWORD.strip()
+    admin_email = settings.ADMIN_EMAIL.strip()
+
+    if not admin_username or not admin_password or not admin_email:
+        raise RuntimeError(
+            "管理员配置不完整，请检查 ADMIN_USERNAME/ADMIN_PASSWORD/ADMIN_EMAIL"
+        )
+
+    db = SessionLocal()
+    try:
+        admin_users = db.query(models.User).filter(models.User.is_admin == True).all()
+
+        if len(admin_users) > 1:
+            raise RuntimeError("检测到多个管理员账号，请清理数据后重试")
+
+        target_admin = admin_users[0] if admin_users else None
+        target_admin_id = target_admin.id if target_admin else None
+
+        username_conflict_query = db.query(models.User).filter(
+            models.User.username == admin_username
+        )
+        if target_admin_id is not None:
+            username_conflict_query = username_conflict_query.filter(
+                models.User.id != target_admin_id
+            )
+        username_conflict = username_conflict_query.first()
+        if username_conflict:
+            raise RuntimeError(
+                f"管理员用户名冲突：{admin_username} 已被普通用户占用，请调整 .env 后重试"
+            )
+
+        email_conflict_query = db.query(models.User).filter(
+            models.User.email == admin_email
+        )
+        if target_admin_id is not None:
+            email_conflict_query = email_conflict_query.filter(
+                models.User.id != target_admin_id
+            )
+        email_conflict = email_conflict_query.first()
+        if email_conflict:
+            raise RuntimeError(
+                f"管理员邮箱冲突：{admin_email} 已被普通用户占用，请调整 .env 后重试"
+            )
+
+        if target_admin:
+            target_admin.username = admin_username
+            target_admin.email = admin_email
+            target_admin.hashed_password = hash_password(admin_password)
+            target_admin.is_admin = True
+        else:
+            db.add(
+                models.User(
+                    username=admin_username,
+                    email=admin_email,
+                    hashed_password=hash_password(admin_password),
+                    is_admin=True,
+                )
+            )
+
+        db.commit()
+    finally:
+        db.close()
+
 
 # 创建数据库表（如果不存在）
 Base.metadata.create_all(bind=engine)
-
-
-# 自动更新数据库结构（添加缺失的字段）
-def update_database_schema():
-    """检查并添加缺失的数据库字段"""
-    inspector = inspect(engine)
-    existing_tables = inspector.get_table_names()
-
-    # books 表需要添加的新字段
-    schema_updates = [
-        ("books", "cover_image", "VARCHAR(255) NULL"),
-    ]
-
-    for table_name, col_name, col_def in schema_updates:
-        if table_name not in existing_tables:
-            continue
-
-        existing_columns = inspector.get_columns(table_name)
-        existing_column_names = [c["name"] for c in existing_columns]
-
-        if col_name not in existing_column_names:
-            try:
-                with engine.connect() as conn:
-                    alter_stmt = f"ALTER TABLE {table_name} ADD COLUMN {col_def}"
-                    conn.execute(text(alter_stmt))
-                    conn.commit()
-                print(f"✓ 已添加字段: {table_name}.{col_name}")
-            except Exception as e:
-                print(f"✗ 添加字段失败 {table_name}.{col_name}: {e}")
-
-
-update_database_schema()
+sync_admin_user()
 
 app = FastAPI(
     title="快速阅读 API",
@@ -67,10 +108,9 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(books.router)
 app.include_router(reading.router)
+app.include_router(bookshelf.router)
 
 # 静态文件服务（封面图片）
-import os
-
 uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
 covers_dir = os.path.join(uploads_dir, "covers")
 os.makedirs(covers_dir, exist_ok=True)

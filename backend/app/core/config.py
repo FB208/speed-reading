@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # 管理员配置
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin123456"
+    ADMIN_EMAIL: str = "admin@example.com"
+
     # OpenAI配置
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"

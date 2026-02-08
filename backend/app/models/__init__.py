@@ -2,6 +2,7 @@
 from .models import (
     User,
     Book,
+    BookshelfItem,
     Paragraph,
     Question,
     ReadingProgress,

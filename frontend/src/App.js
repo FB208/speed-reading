@@ -10,6 +10,7 @@ import EditBook from './pages/EditBook';
 import ReadingTest from './pages/ReadingTest';
 import TestResult from './pages/TestResult';
 import History from './pages/History';
+import MyBookshelf from './pages/MyBookshelf';
 
 // 受保护的路由组件
 const ProtectedRoute = ({ children }) => {
@@ -155,6 +156,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <History />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/bookshelf" 
+                element={
+                  <ProtectedRoute>
+                    <MyBookshelf />
                   </ProtectedRoute>
                 } 
               />

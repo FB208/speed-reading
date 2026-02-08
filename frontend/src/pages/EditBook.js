@@ -29,7 +29,13 @@ const EditBook = () => {
       setBook(bookRes.data);
       setParagraphs(paragraphsRes.data);
     } catch (err) {
-      setError('获取书籍数据失败');
+      if (err.response?.status === 403) {
+        setError('你没有权限编辑这本书');
+      } else if (err.response?.status === 404) {
+        setError('书籍不存在或已被删除');
+      } else {
+        setError('获取书籍数据失败');
+      }
     } finally {
       setLoading(false);
     }

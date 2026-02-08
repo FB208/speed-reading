@@ -31,7 +31,10 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # 创建新用户
     hashed_password = hash_password(user.password)
     db_user = models.User(
-        username=user.username, email=user.email, hashed_password=hashed_password
+        username=user.username,
+        email=user.email,
+        hashed_password=hashed_password,
+        is_admin=False,
     )
     db.add(db_user)
     db.commit()

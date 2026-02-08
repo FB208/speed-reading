@@ -42,3 +42,25 @@ async def get_current_active_user(
             status_code=status.HTTP_400_BAD_REQUEST, detail="用户已被禁用"
         )
     return current_user
+
+
+def can_manage_book(current_user: models.User, book: models.Book) -> bool:
+    """判断当前用户是否有管理书籍权限"""
+    return current_user.is_admin or book.uploaded_by_user_id == current_user.id
+
+
+def ensure_book_in_bookshelf(db: Session, user_id: int, book_id: int) -> None:
+    """确保书籍在用户书架中（幂等）"""
+    bookshelf_item = (
+        db.query(models.BookshelfItem)
+        .filter(
+            models.BookshelfItem.user_id == user_id,
+            models.BookshelfItem.book_id == book_id,
+        )
+        .first()
+    )
+    if bookshelf_item:
+        return
+
+    db.add(models.BookshelfItem(user_id=user_id, book_id=book_id))
+    db.commit()
