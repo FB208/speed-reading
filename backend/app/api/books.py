@@ -3,7 +3,7 @@ import shutil
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import can_manage_book, ensure_book_in_bookshelf, get_current_user
@@ -68,8 +68,8 @@ def get_book(
 @router.post("/upload", response_model=schemas.BookResponse)
 async def upload_book(
     file: UploadFile = File(...),
-    title: Optional[str] = None,
-    author: Optional[str] = None,
+    title: Optional[str] = Form(None),
+    author: Optional[str] = Form(None),
     cover: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
@@ -205,7 +205,7 @@ def get_paragraph(
 def update_paragraph(
     book_id: int,
     paragraph_id: int,
-    content: str,
+    payload: schemas.ParagraphUpdateRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -229,8 +229,8 @@ def update_paragraph(
     if not paragraph:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    paragraph.content = content
-    paragraph.word_count = len(content)
+    paragraph.content = payload.content
+    paragraph.word_count = len(payload.content)
     db.commit()
     db.refresh(paragraph)
 

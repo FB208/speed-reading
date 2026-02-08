@@ -100,9 +100,7 @@ export const booksAPI = {
     api.get(`/books/${bookId}/paragraphs?skip=${skip}&limit=${limit}`),
   
   updateParagraph: (bookId, paragraphId, content) => 
-    api.put(`/books/${bookId}/paragraphs/${paragraphId}`, null, {
-      params: { content }
-    }),
+    api.put(`/books/${bookId}/paragraphs/${paragraphId}`, { content }),
   
   deleteParagraph: (bookId, paragraphId) => 
     api.delete(`/books/${bookId}/paragraphs/${paragraphId}`),

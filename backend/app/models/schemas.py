@@ -73,6 +73,10 @@ class ParagraphResponse(BaseModel):
         from_attributes = True
 
 
+class ParagraphUpdateRequest(BaseModel):
+    content: str
+
+
 # 问题相关Schema
 class QuestionResponse(BaseModel):
     id: int
