@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from datetime import datetime
 from typing import List, Optional
@@ -21,6 +22,16 @@ BOOK_IMAGES_DIR = os.path.join(UPLOAD_DIR, "book_images")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(COVERS_DIR, exist_ok=True)
 os.makedirs(BOOK_IMAGES_DIR, exist_ok=True)
+
+
+def get_plain_text_length(html_content: str) -> int:
+    """计算去除HTML标签后的文本长度"""
+    try:
+        from bs4 import BeautifulSoup
+
+        return len(BeautifulSoup(html_content, "html.parser").get_text())
+    except Exception:
+        return len(re.sub(r"<[^>]+>", "", html_content))
 
 
 def serialize_book(book: models.Book, current_user: models.User) -> dict:
@@ -235,7 +246,7 @@ def update_paragraph(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
     paragraph.content = payload.content
-    paragraph.word_count = len(payload.content)
+    paragraph.word_count = get_plain_text_length(payload.content)
     db.commit()
     db.refresh(paragraph)
 
