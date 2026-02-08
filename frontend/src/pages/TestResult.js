@@ -75,32 +75,15 @@ const TestResult = () => {
   }
 
   return (
-    <div className="container">
-      <div className="card">
-        <h2 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--text-heading)' }}>测试结果</h2>
-
-        {/* 顶部操作按钮 */}
-        <div className="result-actions">
-          {result && result.book_id && (
-            <Link
-              to={`/read/${result.book_id}`}
-              className="btn btn-success btn-main"
-            >
-              下一节
-            </Link>
-          )}
-          <Link to="/books" className="btn btn-primary">
-            书籍列表
-          </Link>
-          <Link to="/history" className="btn btn-secondary">
-            历史记录
-          </Link>
-          <button
-            className="btn btn-secondary"
-            onClick={() => navigate(-1)}
-          >
-            返回
-          </button>
+    <div className="container result-page-container">
+      <div className="card result-card">
+        <div className="result-page-header">
+          <p className="result-page-subtitle">阅读表现报告</p>
+          <p className="result-page-desc">
+            {isSkipped
+              ? '本次你选择了跳过答题，系统已记录阅读速度与阅读时长。'
+              : '这里展示本次阅读表现和答题解析，可随时通过底部工具条继续下一步。'}
+          </p>
         </div>
 
         {result && (
@@ -188,7 +171,7 @@ const TestResult = () => {
           </div>
         )}
 
-        <h3 style={{ marginBottom: '16px', color: 'var(--text-heading)' }}>答案详解</h3>
+        <h3 className="result-section-title">答案详解</h3>
 
         {isSkipped ? (
           <div style={{ 
@@ -250,6 +233,34 @@ const TestResult = () => {
             </div>
           ))
         )}
+      </div>
+
+      <div className="result-floating-toolbar" role="toolbar" aria-label="测试结果操作栏">
+        <div className="result-floating-toolbar-inner">
+          <div className="result-floating-toolbar-shell">
+            {result && result.book_id && (
+              <Link
+                to={`/read/${result.book_id}`}
+                className="result-tool-btn result-tool-btn-main"
+              >
+                下一节
+              </Link>
+            )}
+            <Link to="/books" className="result-tool-btn">
+              书籍列表
+            </Link>
+            <Link to="/history" className="result-tool-btn">
+              历史记录
+            </Link>
+            <button
+              type="button"
+              className="result-tool-btn"
+              onClick={() => navigate(-1)}
+            >
+              返回
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
