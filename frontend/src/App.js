@@ -51,7 +51,10 @@ const Home = () => {
           </div>
         ) : (
           <div className="home-actions">
-            <Link to="/login" className="btn btn-primary">
+            <Link to="/guest/read" className="btn btn-primary">
+              开始阅读
+            </Link>
+            <Link to="/login" className="btn btn-secondary">
               登录
             </Link>
             <Link to="/register" className="btn btn-secondary">
@@ -143,6 +146,7 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route path="/guest/read" element={<ReadingTest isGuestMode />} />
               <Route 
                 path="/result/:resultId" 
                 element={
@@ -151,6 +155,7 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route path="/guest/result" element={<TestResult isGuestMode />} />
               <Route 
                 path="/history" 
                 element={

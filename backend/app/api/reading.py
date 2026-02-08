@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session
+import threading
+import random
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
-from typing import List, Optional
+from sqlalchemy.orm import Session
+
+from app.api.deps import ensure_book_in_bookshelf, get_current_user
 from app.db.database import get_db
 from app.models import models, schemas
-from app.api.deps import ensure_book_in_bookshelf, get_current_user
 from app.services.ai_service import AIService
-import threading
-import time
 
 router = APIRouter(prefix="/reading", tags=["阅读测试"])
 
@@ -15,6 +16,110 @@ router = APIRouter(prefix="/reading", tags=["阅读测试"])
 generating_tasks = {}
 # 线程锁，防止并发重复生成
 generating_lock = threading.Lock()
+
+
+def _serialize_paragraph(paragraph: models.Paragraph) -> dict:
+    return {
+        "id": paragraph.id,
+        "book_id": paragraph.book_id,
+        "sequence": paragraph.sequence,
+        "content": paragraph.content,
+        "word_count": paragraph.word_count,
+    }
+
+
+def _serialize_questions(questions: list[models.Question]) -> list[dict]:
+    return [
+        {
+            "id": question.id,
+            "question_text": question.question_text,
+            "option_a": question.option_a,
+            "option_b": question.option_b,
+            "option_c": question.option_c,
+            "option_d": question.option_d,
+        }
+        for question in questions
+    ]
+
+
+def _start_question_generation(paragraph_id: int, paragraph_content: str) -> None:
+    with generating_lock:
+        if paragraph_id in generating_tasks:
+            return
+
+        print(f"[问题生成] 段落{paragraph_id}没有任务，启动生成")
+        generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
+        thread = threading.Thread(
+            target=generate_questions_async,
+            args=(paragraph_id, paragraph_content, None),
+        )
+        thread.daemon = True
+        thread.start()
+
+
+def _get_questions_response(
+    db: Session, paragraph_id: int, paragraph_content: str
+) -> dict:
+    existing_questions = (
+        db.query(models.Question)
+        .filter(models.Question.paragraph_id == paragraph_id)
+        .all()
+    )
+
+    if existing_questions:
+        print(f"[获取问题] 段落{paragraph_id}已存在{len(existing_questions)}道问题")
+        return {
+            "status": "ready",
+            "questions": _serialize_questions(existing_questions),
+        }
+
+    if paragraph_id in generating_tasks:
+        task_info = generating_tasks[paragraph_id]
+        print(f"[获取问题] 段落{paragraph_id}当前状态: {task_info['status']}")
+
+        if task_info["status"] == "generating":
+            return {
+                "status": "generating",
+                "message": "问题正在生成中，请稍候...",
+                "questions": [],
+            }
+
+        if task_info["status"] == "completed":
+            existing_questions = (
+                db.query(models.Question)
+                .filter(models.Question.paragraph_id == paragraph_id)
+                .all()
+            )
+            if existing_questions:
+                return {
+                    "status": "ready",
+                    "questions": _serialize_questions(existing_questions),
+                }
+
+            print(f"[获取问题] 任务标记完成但数据库为空，清除任务状态")
+            del generating_tasks[paragraph_id]
+            return {
+                "status": "generating",
+                "message": "问题正在保存中，请稍候...",
+                "questions": [],
+            }
+
+        if task_info["status"] == "failed":
+            print(f"[获取问题] 段落{paragraph_id}生成失败，重新启动")
+            del generating_tasks[paragraph_id]
+            _start_question_generation(paragraph_id, paragraph_content)
+            return {
+                "status": "generating",
+                "message": "问题重新生成中，请稍候...",
+                "questions": [],
+            }
+
+    _start_question_generation(paragraph_id, paragraph_content)
+    return {
+        "status": "generating",
+        "message": "问题正在生成中，请稍候...",
+        "questions": [],
+    }
 
 
 def generate_questions_async(
@@ -145,29 +250,11 @@ def get_next_paragraph(
         .count()
     )
 
-    # 如果问题不存在且没有在生成中，启动后台任务生成问题
-    with generating_lock:
-        if existing_questions == 0 and next_paragraph.id not in generating_tasks:
-            print(f"[获取段落] 段落{next_paragraph.id}没有问题，启动异步生成")
-            generating_tasks[next_paragraph.id] = {
-                "status": "generating",
-                "progress": 0,
-            }
-            thread = threading.Thread(
-                target=generate_questions_async,
-                args=(next_paragraph.id, next_paragraph.content, None),
-            )
-            thread.daemon = True
-            thread.start()
+    if existing_questions == 0:
+        _start_question_generation(next_paragraph.id, next_paragraph.content)
 
     return {
-        "paragraph": {
-            "id": next_paragraph.id,
-            "book_id": next_paragraph.book_id,
-            "sequence": next_paragraph.sequence,
-            "content": next_paragraph.content,
-            "word_count": next_paragraph.word_count,
-        },
+        "paragraph": _serialize_paragraph(next_paragraph),
         "questions_ready": existing_questions > 0,
         "questions_generating": next_paragraph.id in generating_tasks
         and generating_tasks[next_paragraph.id]["status"] == "generating",
@@ -179,6 +266,50 @@ def get_next_paragraph(
     }
 
 
+@router.get("/guest/random-paragraph", response_model=dict)
+def get_guest_random_paragraph(db: Session = Depends(get_db)):
+    """游客随机获取一段文本"""
+    total_paragraphs = db.query(models.Paragraph).count()
+    if total_paragraphs == 0:
+        return {
+            "message": "暂无可用段落",
+            "paragraph": None,
+            "questions_ready": False,
+            "questions_generating": False,
+        }
+
+    random_offset = random.randint(0, total_paragraphs - 1)
+    paragraph = (
+        db.query(models.Paragraph)
+        .order_by(models.Paragraph.id)
+        .offset(random_offset)
+        .first()
+    )
+
+    if not paragraph:
+        return {
+            "message": "暂无可用段落",
+            "paragraph": None,
+            "questions_ready": False,
+            "questions_generating": False,
+        }
+
+    existing_questions = (
+        db.query(models.Question)
+        .filter(models.Question.paragraph_id == paragraph.id)
+        .count()
+    )
+    if existing_questions == 0:
+        _start_question_generation(paragraph.id, paragraph.content)
+
+    return {
+        "paragraph": _serialize_paragraph(paragraph),
+        "questions_ready": existing_questions > 0,
+        "questions_generating": paragraph.id in generating_tasks
+        and generating_tasks[paragraph.id]["status"] == "generating",
+    }
+
+
 @router.get("/questions/{paragraph_id}", response_model=dict)
 def get_questions(
     paragraph_id: int,
@@ -186,7 +317,6 @@ def get_questions(
     current_user: models.User = Depends(get_current_user),
 ):
     """获取段落的问题（用户阅读完成后调用）"""
-    # 获取段落
     paragraph = (
         db.query(models.Paragraph).filter(models.Paragraph.id == paragraph_id).first()
     )
@@ -194,122 +324,20 @@ def get_questions(
     if not paragraph:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    # 检查是否已生成问题
-    existing_questions = (
-        db.query(models.Question)
-        .filter(models.Question.paragraph_id == paragraph_id)
-        .all()
+    return _get_questions_response(db, paragraph_id, paragraph.content)
+
+
+@router.get("/guest/questions/{paragraph_id}", response_model=dict)
+def get_guest_questions(paragraph_id: int, db: Session = Depends(get_db)):
+    """游客获取段落的问题"""
+    paragraph = (
+        db.query(models.Paragraph).filter(models.Paragraph.id == paragraph_id).first()
     )
 
-    # 如果问题已存在，直接返回
-    if existing_questions:
-        print(f"[获取问题] 段落{paragraph_id}已存在{len(existing_questions)}道问题")
-        questions_response = []
-        for q in existing_questions:
-            questions_response.append(
-                {
-                    "id": q.id,
-                    "question_text": q.question_text,
-                    "option_a": q.option_a,
-                    "option_b": q.option_b,
-                    "option_c": q.option_c,
-                    "option_d": q.option_d,
-                }
-            )
-        return {
-            "status": "ready",
-            "questions": questions_response,
-        }
+    if not paragraph:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    # 检查是否正在生成中
-    if paragraph_id in generating_tasks:
-        task_info = generating_tasks[paragraph_id]
-        print(f"[获取问题] 段落{paragraph_id}当前状态: {task_info['status']}")
-
-        if task_info["status"] == "generating":
-            return {
-                "status": "generating",
-                "message": "问题正在生成中，请稍候...",
-                "questions": [],
-            }
-        elif task_info["status"] == "completed":
-            # 任务已完成，但数据库中还没有问题，可能是刚保存，重新查询
-            print(f"[获取问题] 任务已完成，重新查询数据库")
-            db.refresh(paragraph)
-            existing_questions = (
-                db.query(models.Question)
-                .filter(models.Question.paragraph_id == paragraph_id)
-                .all()
-            )
-
-            if existing_questions:
-                questions_response = []
-                for q in existing_questions:
-                    questions_response.append(
-                        {
-                            "id": q.id,
-                            "question_text": q.question_text,
-                            "option_a": q.option_a,
-                            "option_b": q.option_b,
-                            "option_c": q.option_c,
-                            "option_d": q.option_d,
-                        }
-                    )
-                return {
-                    "status": "ready",
-                    "questions": questions_response,
-                }
-            else:
-                # 任务标记为完成但数据库为空，清除任务状态让用户重新触发
-                print(f"[获取问题] 任务标记完成但数据库为空，清除任务状态")
-                del generating_tasks[paragraph_id]
-                # 返回生成中，让前端再等等
-                return {
-                    "status": "generating",
-                    "message": "问题正在保存中，请稍候...",
-                    "questions": [],
-                }
-        elif task_info["status"] == "failed":
-            # 任务失败，清除状态并重新启动
-            print(f"[获取问题] 段落{paragraph_id}生成失败，重新启动")
-            del generating_tasks[paragraph_id]
-            # 重新启动生成（使用锁保护）
-            with generating_lock:
-                if paragraph_id not in generating_tasks:
-                    generating_tasks[paragraph_id] = {
-                        "status": "generating",
-                        "progress": 0,
-                    }
-                    thread = threading.Thread(
-                        target=generate_questions_async,
-                        args=(paragraph_id, paragraph.content, None),
-                    )
-                    thread.daemon = True
-                    thread.start()
-            return {
-                "status": "generating",
-                "message": "问题重新生成中，请稍候...",
-                "questions": [],
-            }
-
-    # 如果没有在生成中，启动生成（使用锁保护）
-    with generating_lock:
-        # 再次检查，防止并发
-        if paragraph_id not in generating_tasks:
-            print(f"[获取问题] 段落{paragraph_id}没有任务，启动生成")
-            generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
-            thread = threading.Thread(
-                target=generate_questions_async,
-                args=(paragraph_id, paragraph.content, None),
-            )
-            thread.daemon = True
-            thread.start()
-
-    return {
-        "status": "generating",
-        "message": "问题正在生成中，请稍候...",
-        "questions": [],
-    }
+    return _get_questions_response(db, paragraph_id, paragraph.content)
 
 
 @router.post("/submit-test", response_model=schemas.TestResultResponse)
@@ -418,6 +446,74 @@ def submit_test(
         del generating_tasks[test_data.paragraph_id]
 
     return test_result
+
+
+@router.post("/guest/submit-test", response_model=dict)
+def submit_guest_test(test_data: schemas.TestSubmit, db: Session = Depends(get_db)):
+    """游客提交测试结果（只计算，不落库）"""
+    paragraph = (
+        db.query(models.Paragraph)
+        .filter(models.Paragraph.id == test_data.paragraph_id)
+        .first()
+    )
+
+    if not paragraph:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
+
+    reading_time_minutes = test_data.reading_time_seconds / 60
+    words_per_minute = (
+        paragraph.word_count / reading_time_minutes if reading_time_minutes > 0 else 0
+    )
+
+    correct_count = 0
+    total_questions = len(test_data.answers)
+    answers_detail = []
+
+    for answer_data in test_data.answers:
+        question = (
+            db.query(models.Question)
+            .filter(models.Question.id == answer_data.question_id)
+            .first()
+        )
+        if not question:
+            continue
+
+        is_correct = question.correct_answer.upper() == answer_data.answer.upper()
+        if is_correct:
+            correct_count += 1
+
+        answers_detail.append(
+            {
+                "question": question.question_text,
+                "user_answer": answer_data.answer.upper(),
+                "correct_answer": question.correct_answer,
+                "is_correct": is_correct,
+                "options": {
+                    "A": question.option_a,
+                    "B": question.option_b,
+                    "C": question.option_c,
+                    "D": question.option_d,
+                },
+            }
+        )
+
+    comprehension_rate = (
+        (correct_count / total_questions * 100) if total_questions > 0 else 0
+    )
+
+    return {
+        "test_result": {
+            "paragraph_id": test_data.paragraph_id,
+            "book_id": paragraph.book_id,
+            "reading_time_seconds": test_data.reading_time_seconds,
+            "words_per_minute": round(words_per_minute, 2),
+            "correct_count": correct_count,
+            "total_questions": total_questions,
+            "comprehension_rate": round(comprehension_rate, 2),
+            "skipped": total_questions == 0,
+        },
+        "answers_detail": answers_detail,
+    }
 
 
 @router.get("/results")

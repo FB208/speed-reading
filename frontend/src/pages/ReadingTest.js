@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { readingAPI } from '../services/api';
 
-const ReadingTest = () => {
+const ReadingTest = ({ isGuestMode = false }) => {
   const { bookId } = useParams();
   const navigate = useNavigate();
   
@@ -36,16 +36,19 @@ const ReadingTest = () => {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [bookId]);
+  }, [bookId, isGuestMode]);
 
   const fetchNextParagraph = async () => {
     try {
       setLoading(true);
-      const response = await readingAPI.getNextParagraph(bookId);
+      setError('');
+      const response = isGuestMode
+        ? await readingAPI.getGuestRandomParagraph()
+        : await readingAPI.getNextParagraph(bookId);
       
       if (response.data.paragraph) {
         setParagraph(response.data.paragraph);
-        setProgress(response.data.progress);
+        setProgress(isGuestMode ? null : response.data.progress);
         // 检查问题是否已经准备好
         if (response.data.questions_ready) {
           // 问题已存在，直接获取
@@ -54,7 +57,7 @@ const ReadingTest = () => {
       } else {
         // 书籍已完成
         setParagraph(null);
-        setProgress(response.data.progress);
+        setProgress(isGuestMode ? null : response.data.progress);
       }
     } catch (err) {
       setError('获取段落失败');
@@ -66,7 +69,9 @@ const ReadingTest = () => {
   const fetchQuestions = async (paragraphId) => {
     try {
       setQuestionsLoading(true);
-      const response = await readingAPI.getQuestions(paragraphId);
+      const response = isGuestMode
+        ? await readingAPI.getGuestQuestions(paragraphId)
+        : await readingAPI.getQuestions(paragraphId);
       
       if (response.data.status === 'ready') {
         // 问题已准备好
@@ -149,14 +154,21 @@ const ReadingTest = () => {
     }));
 
     try {
-      const response = await readingAPI.submitTest(
-        paragraph.id,
-        readingTimeSeconds,
-        formattedAnswers
-      );
-      
-      // 跳转到结果页面
-      navigate(`/result/${response.data.id}`);
+      if (isGuestMode) {
+        const response = await readingAPI.submitGuestTest(
+          paragraph.id,
+          readingTimeSeconds,
+          formattedAnswers
+        );
+        navigate('/guest/result', { state: response.data });
+      } else {
+        const response = await readingAPI.submitTest(
+          paragraph.id,
+          readingTimeSeconds,
+          formattedAnswers
+        );
+        navigate(`/result/${response.data.id}`);
+      }
     } catch (err) {
       setError('提交测试失败');
       setSubmitting(false);
@@ -170,15 +182,23 @@ const ReadingTest = () => {
     setSubmitting(true);
     
     try {
-      // 保存跳过的历史记录 - 使用submitTest API
-      const response = await readingAPI.submitTest(
-        paragraph.id,
-        currentReadingTimeSeconds,
-        []  // 跳过没有答案
-      );
-      
-      // 使用返回的测试结果 ID 跳转
-      navigate(`/result/${response.data.id}?skipped=true`);
+      if (isGuestMode) {
+        const response = await readingAPI.submitGuestTest(
+          paragraph.id,
+          currentReadingTimeSeconds,
+          []
+        );
+        navigate('/guest/result', { state: response.data });
+      } else {
+        // 保存跳过的历史记录 - 使用submitTest API
+        const response = await readingAPI.submitTest(
+          paragraph.id,
+          currentReadingTimeSeconds,
+          []  // 跳过没有答案
+        );
+        // 使用返回的测试结果 ID 跳转
+        navigate(`/result/${response.data.id}?skipped=true`);
+      }
     } catch (err) {
       setError('保存跳过记录失败');
       console.error('保存跳过记录失败:', err);
@@ -204,18 +224,20 @@ const ReadingTest = () => {
       <div className="container">
         <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
           <h2 style={{ color: 'var(--text-heading)' }}>恭喜！</h2>
-          <p style={{ margin: '20px 0', color: 'var(--text-secondary)' }}>你已经完成了这本书的所有段落</p>
-          {progress && (
+          <p style={{ margin: '20px 0', color: 'var(--text-secondary)' }}>
+            {isGuestMode ? '暂时没有可用段落，请稍后再试' : '你已经完成了这本书的所有段落'}
+          </p>
+          {!isGuestMode && progress && (
             <p style={{ color: 'var(--text-secondary)' }}>
               完成进度：{progress.completed} / {progress.total}
             </p>
           )}
           <button
             className="btn btn-primary"
-            onClick={() => navigate('/books')}
+            onClick={() => navigate(isGuestMode ? '/' : '/books')}
             style={{ marginTop: '20px' }}
           >
-            返回书籍列表
+            {isGuestMode ? '返回首页' : '返回书籍列表'}
           </button>
         </div>
       </div>
@@ -224,7 +246,7 @@ const ReadingTest = () => {
 
   return (
     <div className="container">
-      {progress && (
+      {!isGuestMode && progress && (
         <div style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '14px' }}>
           进度：{progress.completed} / {progress.total} 段落
         </div>
@@ -237,6 +259,12 @@ const ReadingTest = () => {
             点击开始后，系统会记录你的阅读时间。
             <br />
             阅读完成后，需要回答5道理解题。
+            {isGuestMode && (
+              <>
+                <br />
+                游客模式不会保存历史记录和阅读进度。
+              </>
+            )}
           </p>
           <button className="btn btn-primary" onClick={startReading}>
             开始阅读
@@ -294,7 +322,7 @@ const ReadingTest = () => {
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
               <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤔</div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
-                AI正在根据文本内容生成问题...
+                正在准备题...
                 <br />
                 <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>请稍候，马上就好</span>
               </p>

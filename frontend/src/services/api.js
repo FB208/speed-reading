@@ -121,12 +121,25 @@ export const bookshelfAPI = {
 export const readingAPI = {
   getNextParagraph: (bookId) => 
     api.get(`/reading/next-paragraph/${bookId}`),
+
+  getGuestRandomParagraph: () =>
+    api.get('/reading/guest/random-paragraph'),
   
   getQuestions: (paragraphId) => 
     api.get(`/reading/questions/${paragraphId}`),
+
+  getGuestQuestions: (paragraphId) =>
+    api.get(`/reading/guest/questions/${paragraphId}`),
   
   submitTest: (paragraphId, readingTimeSeconds, answers) => 
     api.post('/reading/submit-test', {
+      paragraph_id: paragraphId,
+      reading_time_seconds: readingTimeSeconds,
+      answers: answers,
+    }),
+
+  submitGuestTest: (paragraphId, readingTimeSeconds, answers) =>
+    api.post('/reading/guest/submit-test', {
       paragraph_id: paragraphId,
       reading_time_seconds: readingTimeSeconds,
       answers: answers,

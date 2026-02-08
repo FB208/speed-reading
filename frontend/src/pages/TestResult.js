@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { readingAPI } from '../services/api';
 
-const TestResult = () => {
+const TestResult = ({ isGuestMode = false }) => {
   const { resultId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [result, setResult] = useState(null);
@@ -15,6 +16,21 @@ const TestResult = () => {
   const [skippedData, setSkippedData] = useState(null);
 
   useEffect(() => {
+    if (isGuestMode) {
+      const guestData = location.state;
+      if (!guestData?.test_result) {
+        setError('游客结果不存在，请重新开始阅读');
+        setLoading(false);
+        return;
+      }
+
+      setResult(guestData.test_result);
+      setAnswersDetail(guestData.answers_detail || []);
+      setIsSkipped(guestData.test_result.skipped === true);
+      setLoading(false);
+      return;
+    }
+
     // 检查是否是跳过的测试
     const skipped = searchParams.get('skipped') === 'true';
     const bookId = searchParams.get('bookId');
@@ -42,7 +58,7 @@ const TestResult = () => {
     } else {
       fetchResultDetail();
     }
-  }, [resultId, searchParams]);
+  }, [isGuestMode, location.state, resultId, searchParams]);
 
   const fetchResultDetail = async () => {
     try {
@@ -107,7 +123,7 @@ const TestResult = () => {
                 }}
               >
                 <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
-                  {isSkipped ? (
+                  {isSkipped && !isGuestMode ? (
                     <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>跳过测试</span>
                   ) : (
                     result.words_per_minute
@@ -145,7 +161,11 @@ const TestResult = () => {
                 }}
               >
                 <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--warning)' }}>
-                  {formatTime(isSkipped ? skippedData?.readingTimeSeconds || 0 : result.reading_time_seconds)}
+                  {formatTime(
+                    isSkipped && !isGuestMode
+                      ? skippedData?.readingTimeSeconds || 0
+                      : result.reading_time_seconds
+                  )}
                 </div>
                 <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>阅读时长</div>
               </div>
@@ -238,20 +258,29 @@ const TestResult = () => {
       <div className="result-floating-toolbar" role="toolbar" aria-label="测试结果操作栏">
         <div className="result-floating-toolbar-inner">
           <div className="result-floating-toolbar-shell">
-            {result && result.book_id && (
-              <Link
-                to={`/read/${result.book_id}`}
-                className="result-tool-btn result-tool-btn-main"
-              >
-                下一节
+             {isGuestMode ? (
+               <Link
+                 to="/guest/read"
+                 className="result-tool-btn result-tool-btn-main"
+               >
+                 下一节
+               </Link>
+             ) : result && result.book_id && (
+               <Link
+                 to={`/read/${result.book_id}`}
+                 className="result-tool-btn result-tool-btn-main"
+               >
+                 下一节
+               </Link>
+             )}
+            <Link to={isGuestMode ? '/' : '/books'} className="result-tool-btn">
+              {isGuestMode ? '首页' : '书籍列表'}
+            </Link>
+            {!isGuestMode && (
+              <Link to="/history" className="result-tool-btn">
+                历史记录
               </Link>
             )}
-            <Link to="/books" className="result-tool-btn">
-              书籍列表
-            </Link>
-            <Link to="/history" className="result-tool-btn">
-              历史记录
-            </Link>
             <button
               type="button"
               className="result-tool-btn"
