@@ -1,10 +1,27 @@
 import axios from 'axios';
 
+// 解析 API 基础地址
+// 1) 显式配置 REACT_APP_API_BASE_URL 时优先使用
+// 2) 生产环境默认走同源 /api（避免与前端路由冲突）
+// 3) 本地开发默认直连后端 http://localhost:8000
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = process.env.REACT_APP_API_BASE_URL;
+  if (configuredBaseUrl && configuredBaseUrl.trim() !== '') {
+    return configuredBaseUrl.trim().replace(/\/+$/, '');
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return '/api';
+  }
+
+  return 'http://localhost:8000';
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
 // 创建axios实例
-// 生产环境（Docker）中 REACT_APP_API_BASE_URL 设为空字符串，使用同源请求经 nginx 代理
-// 本地开发时默认直连后端 http://localhost:8000
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8000',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

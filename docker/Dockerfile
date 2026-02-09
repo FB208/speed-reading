@@ -10,8 +10,8 @@ RUN npm ci
 
 COPY frontend/ .
 
-# 生产环境使用空的 API base URL（通过 nginx 同源代理）
-RUN REACT_APP_API_BASE_URL="" npm run build
+# 生产环境统一使用 /api（通过 nginx 同源代理转发到后端）
+RUN REACT_APP_API_BASE_URL="/api" npm run build
 
 # ============================================
 # Stage 2: 生产镜像（Python + Nginx）

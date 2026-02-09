@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { booksAPI } from '../services/api';
-
-const API_BASE = process.env.REACT_APP_API_BASE_URL ?? '';
+import { booksAPI, API_BASE_URL } from '../services/api';
 
 const BookList = () => {
   const [books, setBooks] = useState([]);
@@ -29,7 +27,7 @@ const BookList = () => {
   const getCoverUrl = (coverImage) => {
     if (!coverImage) return null;
     if (coverImage.startsWith('http')) return coverImage;
-    const normalizedBase = API_BASE.replace(/\/+$/, '');
+    const normalizedBase = API_BASE_URL.replace(/\/+$/, '');
     return `${normalizedBase}/${coverImage}`;
   };
 
