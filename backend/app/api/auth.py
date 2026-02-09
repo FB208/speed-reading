@@ -68,7 +68,11 @@ def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
         )
 
     # 创建访问令牌
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = (
+        timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        if settings.ACCESS_TOKEN_EXPIRE_MINUTES > 0
+        else None
+    )
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )

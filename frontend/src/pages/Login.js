@@ -26,11 +26,16 @@ const Login = () => {
     setError('');
     setLoading(true);
 
+    // 兼容浏览器自动填充：提交时直接从表单读取最新值
+    const formDataObj = new FormData(e.currentTarget);
+    const username = String(formDataObj.get('username') || '').trim();
+    const password = String(formDataObj.get('password') || '');
+
     try {
-      const response = await authAPI.login(formData.username, formData.password);
+      const response = await authAPI.login(username, password);
       const { access_token } = response.data;
       
-      login(access_token, { username: formData.username });
+      login(access_token, { username });
       
       navigate('/');
     } catch (err) {
@@ -57,6 +62,7 @@ const Login = () => {
             <input
               type="text"
               name="username"
+              autoComplete="username"
               className="form-input"
               value={formData.username}
               onChange={handleChange}
@@ -70,6 +76,7 @@ const Login = () => {
             <input
               type="password"
               name="password"
+              autoComplete="current-password"
               className="form-input"
               value={formData.password}
               onChange={handleChange}
