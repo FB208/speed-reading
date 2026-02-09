@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+Disallow: /auth/
+Disallow: /books
+Disallow: /reading/
+Disallow: /login
+Disallow: /register
+Disallow: /upload
+Disallow: /edit/
+Disallow: /history
+Disallow: /result/
+Disallow: /bookshelf
+Disallow: /guest/result
+Disallow: /docs
+Disallow: /openapi.json
+Disallow: /redoc
+
+Sitemap: https://read.good666.cc/sitemap.xml

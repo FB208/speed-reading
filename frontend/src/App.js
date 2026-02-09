@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
+import SeoManager from './components/SeoManager';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import BookList from './pages/BookList';
@@ -39,6 +40,14 @@ const Home = () => {
           测试你的阅读速度和理解能力<br />
           通过科学的阅读训练，提升你的阅读效率
         </p>
+
+        <div className="home-seo-content">
+          <h2 className="home-seo-title">科学提升阅读速度与阅读理解能力</h2>
+          <p className="home-seo-text">
+            平台提供电子书在线阅读、分段计时与阅读理解测试，帮助你在保证理解质量的前提下持续提升阅读速度。
+            无论是备考学习还是日常知识输入，都可以通过系统化训练建立稳定的阅读能力。
+          </p>
+        </div>
         
         {isAuthenticated ? (
           <div className="home-actions">
@@ -102,6 +111,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <SeoManager />
         <div style={{ 
           minHeight: '100vh', 
           display: 'flex', 

@@ -614,6 +614,29 @@ button.result-tool-btn {
   margin-right: auto;
 }
 
+.home-seo-content {
+  max-width: 760px;
+  margin: 0 auto 36px;
+  padding: 20px 24px;
+  border-radius: 12px;
+  border: 1px solid var(--paper-dark);
+  background-color: var(--paper-bg);
+  text-align: left;
+}
+
+.home-seo-title {
+  margin-bottom: 10px;
+  font-size: 22px;
+  color: var(--text-heading);
+  line-height: 1.45;
+}
+
+.home-seo-text {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.9;
+}
+
 .home-actions {
   display: flex;
   gap: 16px;
@@ -714,6 +737,39 @@ button.result-tool-btn {
   color: var(--text-heading);
   font-size: 26px;
   font-weight: 600;
+}
+
+.book-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.book-filter-bar .form-input {
+  flex: 1;
+}
+
+.book-filter-toggle {
+  border: 1px solid var(--paper-dark);
+  border-radius: 8px;
+  background-color: var(--paper-card);
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.book-filter-toggle:hover {
+  border-color: var(--accent-secondary);
+  color: var(--text-primary);
+}
+
+.book-filter-toggle.active {
+  background-color: var(--accent-light-bg);
+  border-color: var(--accent-secondary);
+  color: var(--text-heading);
 }
 
 /* ========== 书籍网格 ========== */
@@ -1048,6 +1104,17 @@ button.result-tool-btn {
     font-size: 22px;
   }
 
+  .book-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .book-filter-toggle {
+    width: 100%;
+    min-height: 44px;
+  }
+
   /* 书籍网格响应式 */
   .book-grid {
     grid-template-columns: 1fr;
@@ -1076,6 +1143,20 @@ button.result-tool-btn {
   .home-desc {
     font-size: 16px;
     margin-bottom: 28px;
+  }
+
+  .home-seo-content {
+    margin-bottom: 24px;
+    padding: 16px;
+  }
+
+  .home-seo-title {
+    font-size: 18px;
+  }
+
+  .home-seo-text {
+    font-size: 14px;
+    line-height: 1.8;
   }
 
   .home-features {
@@ -1174,6 +1255,20 @@ button.result-tool-btn {
   .home-desc {
     font-size: 15px;
     margin-bottom: 24px;
+  }
+
+  .home-seo-content {
+    margin-bottom: 20px;
+    padding: 14px;
+  }
+
+  .home-seo-title {
+    font-size: 16px;
+  }
+
+  .home-seo-text {
+    font-size: 13px;
+    line-height: 1.7;
   }
 
   .home-features {

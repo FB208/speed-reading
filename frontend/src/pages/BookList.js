@@ -6,6 +6,8 @@ const API_BASE = process.env.REACT_APP_API_BASE_URL ?? '';
 
 const BookList = () => {
   const [books, setBooks] = useState([]);
+  const [keyword, setKeyword] = useState('');
+  const [onlyMine, setOnlyMine] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -31,6 +33,21 @@ const BookList = () => {
     return `${normalizedBase}/${coverImage}`;
   };
 
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  const filteredBooks = books.filter((book) => {
+    if (onlyMine && !book.is_uploaded_by_me) {
+      return false;
+    }
+
+    if (!normalizedKeyword) {
+      return true;
+    }
+
+    const title = (book.title || '').toLowerCase();
+    const author = (book.author || '').toLowerCase();
+    return title.includes(normalizedKeyword) || author.includes(normalizedKeyword);
+  });
+
   if (loading) {
     return <div className="loading">加载中...</div>;
   }
@@ -44,18 +61,38 @@ const BookList = () => {
         </Link>
       </div>
 
+      <div className="book-filter-bar card">
+        <input
+          type="text"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          className="form-input"
+          placeholder="搜索书名或作者"
+        />
+
+        <button
+          type="button"
+          className={`book-filter-toggle ${onlyMine ? 'active' : ''}`}
+          onClick={() => setOnlyMine((prev) => !prev)}
+        >
+          {onlyMine ? '只看我上传：开' : '只看我上传：关'}
+        </button>
+      </div>
+
       {error && <div className="error-message">{error}</div>}
 
-      {books.length === 0 ? (
+      {filteredBooks.length === 0 ? (
         <div className="card empty-state">
           <div className="empty-state-icon">📚</div>
           <p style={{ color: 'var(--text-secondary)' }}>
-            还没有书籍，点击上方按钮上传第一本书吧！
+            {books.length === 0
+              ? '还没有书籍，点击上方按钮上传第一本书吧！'
+              : '没有找到符合条件的书籍，试试调整搜索词或筛选条件'}
           </p>
         </div>
       ) : (
         <div className="book-grid">
-          {books.map((book) => {
+          {filteredBooks.map((book) => {
             const coverUrl = getCoverUrl(book.cover_image);
             
             return (
