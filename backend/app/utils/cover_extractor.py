@@ -1,8 +1,11 @@
 import os
 import re
 import zipfile
+import logging
 from typing import Optional, Tuple
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class CoverExtractor:
@@ -45,7 +48,7 @@ class CoverExtractor:
                 # txt, docx, pdf 等格式不支持自动提取封面
                 return None
         except Exception as e:
-            print(f"提取封面失败: {str(e)}")
+            logger.warning("提取封面失败: %s", str(e), exc_info=True)
             return None
 
     def _save_manual_cover(self, cover_data: bytes, filename: Optional[str]) -> str:
@@ -142,7 +145,7 @@ class CoverExtractor:
             return None
 
         except Exception as e:
-            print(f"提取 EPUB 封面失败: {str(e)}")
+            logger.warning("提取 EPUB 封面失败: %s", str(e), exc_info=True)
             return None
 
     def _extract_mobi_cover(self, file_path: str) -> Optional[str]:
@@ -198,7 +201,7 @@ class CoverExtractor:
                 shutil.rmtree(tempdir, ignore_errors=True)
 
         except Exception as e:
-            print(f"提取 MOBI 封面失败: {str(e)}")
+            logger.warning("提取 MOBI 封面失败: %s", str(e), exc_info=True)
             return None
 
     def delete_cover(self, cover_path: str):
@@ -211,4 +214,4 @@ class CoverExtractor:
             try:
                 os.remove(full_path)
             except Exception as e:
-                print(f"删除封面失败: {str(e)}")
+                logger.warning("删除封面失败: %s", str(e), exc_info=True)

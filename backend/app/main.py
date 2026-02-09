@@ -1,14 +1,85 @@
 import os
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import inspect, text
 
 from app.api import auth, books, reading, bookshelf
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db.database import Base, SessionLocal, engine
 from app.models import models
+
+logger = logging.getLogger(__name__)
+
+
+def configure_logging() -> None:
+    """初始化应用日志配置"""
+    log_level_name = settings.LOG_LEVEL.upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
+
+configure_logging()
+
+
+def ensure_database_indexes() -> None:
+    """确保高频查询索引存在（兼容历史库）"""
+    expected_indexes = {
+        "books": {
+            "idx_books_uploaded_by_created": "CREATE INDEX idx_books_uploaded_by_created ON books (uploaded_by_user_id, created_at)",
+        },
+        "bookshelf_items": {
+            "idx_bookshelf_user_created": "CREATE INDEX idx_bookshelf_user_created ON bookshelf_items (user_id, created_at)",
+        },
+        "paragraphs": {
+            "idx_paragraph_book_sequence": "CREATE INDEX idx_paragraph_book_sequence ON paragraphs (book_id, sequence)",
+        },
+        "questions": {
+            "idx_question_paragraph": "CREATE INDEX idx_question_paragraph ON questions (paragraph_id)",
+        },
+        "reading_progress": {
+            "idx_progress_user_book_completed": "CREATE INDEX idx_progress_user_book_completed ON reading_progress (user_id, book_id, is_completed)",
+            "idx_progress_user_paragraph": "CREATE INDEX idx_progress_user_paragraph ON reading_progress (user_id, paragraph_id)",
+        },
+        "test_results": {
+            "idx_test_result_user_created": "CREATE INDEX idx_test_result_user_created ON test_results (user_id, created_at)",
+            "idx_test_result_user_paragraph": "CREATE INDEX idx_test_result_user_paragraph ON test_results (user_id, paragraph_id)",
+        },
+        "user_answers": {
+            "idx_user_answer_test_result": "CREATE INDEX idx_user_answer_test_result ON user_answers (test_result_id)",
+            "idx_user_answer_question": "CREATE INDEX idx_user_answer_question ON user_answers (question_id)",
+        },
+    }
+
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table_name, index_sql_map in expected_indexes.items():
+            existing_indexes = {
+                index_info.get("name")
+                for index_info in inspector.get_indexes(table_name)
+                if index_info.get("name")
+            }
+
+            for index_name, create_sql in index_sql_map.items():
+                if index_name in existing_indexes:
+                    continue
+
+                try:
+                    conn.execute(text(create_sql))
+                    logger.info("已创建数据库索引: %s.%s", table_name, index_name)
+                except Exception as create_error:
+                    logger.warning(
+                        "创建数据库索引失败: %s.%s, error=%s",
+                        table_name,
+                        index_name,
+                        str(create_error),
+                    )
 
 
 def sync_admin_user() -> None:
@@ -80,6 +151,7 @@ def sync_admin_user() -> None:
 
 # 创建数据库表（如果不存在）
 Base.metadata.create_all(bind=engine)
+ensure_database_indexes()
 sync_admin_user()
 
 app = FastAPI(

@@ -1,0 +1,150 @@
+.reading-progress-text {
+  margin-bottom: 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.reading-start-card {
+  text-align: center;
+  padding: 40px;
+}
+
+.reading-start-title {
+  color: var(--text-heading);
+}
+
+.reading-start-desc {
+  margin: 20px 0;
+  color: var(--text-secondary);
+}
+
+.reading-settings-prestart {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.reading-settings-reading {
+  margin-bottom: 20px;
+}
+
+.reading-content-shell-main {
+  margin-bottom: 24px;
+}
+
+.reading-finish-btn {
+  width: 100%;
+}
+
+.reading-status-card {
+  text-align: center;
+  padding: 40px;
+}
+
+.reading-status-title {
+  color: var(--text-heading);
+}
+
+.reading-status-desc {
+  margin: 20px 0;
+  color: var(--text-secondary);
+}
+
+.reading-status-progress {
+  color: var(--text-secondary);
+}
+
+.reading-status-action {
+  margin-top: 20px;
+}
+
+.reading-question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--paper-dark);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.reading-question-title {
+  margin: 0;
+  color: var(--text-heading);
+}
+
+.reading-skip-btn {
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+.reading-questions-loading {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.reading-questions-loading-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.reading-questions-loading-text {
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.reading-questions-loading-subtext {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.reading-questions-loading-bar {
+  width: 200px;
+  height: 4px;
+  background-color: var(--paper-dark);
+  margin: 20px auto;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.reading-questions-loading-bar-fill {
+  width: 100%;
+  height: 100%;
+  background-color: var(--accent-primary);
+  animation: reading-loading-bar 1.5s infinite ease-in-out;
+  transform-origin: left;
+}
+
+@keyframes reading-loading-bar {
+  0% {
+    transform: scaleX(0);
+  }
+
+  50% {
+    transform: scaleX(1);
+  }
+
+  100% {
+    transform: scaleX(0);
+    transform-origin: right;
+  }
+}
+
+.reading-question-item {
+  margin-bottom: 24px;
+}
+
+.reading-question-text {
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-heading);
+}
+
+.reading-question-options {
+  padding-left: 12px;
+}
+
+.reading-submit-btn {
+  width: 100%;
+  margin-top: 20px;
+}

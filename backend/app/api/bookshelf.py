@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user
 from app.db.database import get_db
@@ -21,6 +21,7 @@ def get_my_bookshelf(
     """获取当前用户书架"""
     items = (
         db.query(models.BookshelfItem)
+        .options(joinedload(models.BookshelfItem.book).joinedload(models.Book.uploader))
         .filter(models.BookshelfItem.user_id == current_user.id)
         .order_by(models.BookshelfItem.created_at.desc())
         .offset(skip)
@@ -28,22 +29,33 @@ def get_my_bookshelf(
         .all()
     )
 
+    book_ids = [item.book_id for item in items if item.book]
+    completed_map = {}
+    if book_ids:
+        completed_rows = (
+            db.query(
+                models.ReadingProgress.book_id,
+                func.count(models.ReadingProgress.id).label("completed_count"),
+            )
+            .filter(
+                models.ReadingProgress.user_id == current_user.id,
+                models.ReadingProgress.book_id.in_(book_ids),
+                models.ReadingProgress.is_completed == True,
+            )
+            .group_by(models.ReadingProgress.book_id)
+            .all()
+        )
+        completed_map = {
+            int(row.book_id): int(row.completed_count or 0) for row in completed_rows
+        }
+
     response = []
     for item in items:
         book = item.book
         if not book:
             continue
 
-        completed_paragraphs = (
-            db.query(func.count(models.ReadingProgress.id))
-            .filter(
-                models.ReadingProgress.user_id == current_user.id,
-                models.ReadingProgress.book_id == book.id,
-                models.ReadingProgress.is_completed == True,
-            )
-            .scalar()
-        )
-        completed_paragraphs = int(completed_paragraphs or 0)
+        completed_paragraphs = completed_map.get(int(book.id), 0)
         total_paragraphs = int(book.total_paragraphs or 0)
         progress_percentage = (
             round((completed_paragraphs / total_paragraphs) * 100, 2)

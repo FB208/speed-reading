@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { readingAPI } from '../services/api';
+import '../styles/reading-test.css';
 
 const SETTINGS_STORAGE_KEY = 'reading-settings-v1';
 const DEFAULT_READING_SETTINGS = {
@@ -480,20 +481,19 @@ const ReadingTest = ({ isGuestMode = false }) => {
   if (!paragraph) {
     return (
       <div className="container">
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <h2 style={{ color: 'var(--text-heading)' }}>恭喜！</h2>
-          <p style={{ margin: '20px 0', color: 'var(--text-secondary)' }}>
+        <div className="card reading-status-card">
+          <h2 className="reading-status-title">恭喜！</h2>
+          <p className="reading-status-desc">
             {isGuestMode ? '暂时没有可用段落，请稍后再试' : '你已经完成了这本书的所有段落'}
           </p>
           {!isGuestMode && progress && (
-            <p style={{ color: 'var(--text-secondary)' }}>
+            <p className="reading-status-progress">
               完成进度：{progress.completed} / {progress.total}
             </p>
           )}
           <button
-            className="btn btn-primary"
+            className="btn btn-primary reading-status-action"
             onClick={() => navigate(isGuestMode ? '/' : '/books')}
-            style={{ marginTop: '20px' }}
           >
             {isGuestMode ? '返回首页' : '返回书籍列表'}
           </button>
@@ -525,8 +525,8 @@ const ReadingTest = ({ isGuestMode = false }) => {
     : '辅助高亮已关闭';
 
   // 渲染阅读设置栏（预留多设置项扩展能力）
-  const renderReadingSettingsBar = (idPrefix, style) => (
-    <div className="reading-settings-shell" style={style}>
+  const renderReadingSettingsBar = (idPrefix, className = '') => (
+    <div className={`reading-settings-shell ${className}`.trim()}>
       <button
         type="button"
         className={`reading-settings-toggle ${isSettingsExpanded ? 'expanded' : ''}`}
@@ -597,16 +597,16 @@ const ReadingTest = ({ isGuestMode = false }) => {
   return (
     <div className="container">
       {!isGuestMode && progress && (
-        <div style={{ marginBottom: '20px', color: 'var(--text-secondary)', fontSize: '14px' }}>
+        <div className="reading-progress-text">
           进度：{progress.completed} / {progress.total} 段落
         </div>
       )}
 
       {!isReading && !showQuestions && (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <h3 style={{ color: 'var(--text-heading)' }}>准备开始阅读</h3>
-          {renderReadingSettingsBar('setting', { marginTop: '20px', textAlign: 'left' })}
-          <p style={{ margin: '20px 0', color: 'var(--text-secondary)' }}>
+        <div className="card reading-start-card">
+          <h3 className="reading-start-title">准备开始阅读</h3>
+          {renderReadingSettingsBar('setting', 'reading-settings-prestart')}
+          <p className="reading-start-desc">
             点击开始后，系统会记录你的阅读时间。
             <br />
             阅读完成后，需要回答5道理解题。
@@ -631,10 +631,11 @@ const ReadingTest = ({ isGuestMode = false }) => {
               {formatElapsedTime(elapsedTime)}
             </span>
           </div>
-          {renderReadingSettingsBar('reading', { marginBottom: '20px' })}
+          {renderReadingSettingsBar('reading', 'reading-settings-reading')}
           <div
-            className={`reading-content-shell ${isHighlightEnabled ? 'reading-highlight-enabled' : ''}`}
-            style={{ marginBottom: '24px' }}
+            className={`reading-content-shell reading-content-shell-main ${
+              isHighlightEnabled ? 'reading-highlight-enabled' : ''
+            }`}
           >
             <div
               ref={richTextContentRef}
@@ -642,10 +643,9 @@ const ReadingTest = ({ isGuestMode = false }) => {
               dangerouslySetInnerHTML={{ __html: paragraph.content }}
             />
           </div>
-          <button 
-            className="btn btn-success" 
+          <button
+            className="btn btn-success reading-finish-btn"
             onClick={finishReading}
-            style={{ width: '100%' }}
           >
             我已完成阅读
           </button>
@@ -655,80 +655,44 @@ const ReadingTest = ({ isGuestMode = false }) => {
       {showQuestions && (
         <div className="card">
           {/* 跳过答题按钮 - 放置在答题界面顶部 */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: '24px',
-            paddingBottom: '16px',
-            borderBottom: '1px solid var(--paper-dark)',
-            flexWrap: 'wrap',
-            gap: '12px'
-          }}>
-            <h3 style={{ margin: 0, color: 'var(--text-heading)' }}>阅读理解测试</h3>
+          <div className="reading-question-header">
+            <h3 className="reading-question-title">阅读理解测试</h3>
             <button
-              className="btn btn-danger"
+              className="btn btn-danger reading-skip-btn"
               onClick={skipTest}
-              style={{ fontSize: '14px', padding: '8px 16px' }}
             >
               跳过答题
             </button>
           </div>
-          
+
           {questionsLoading && questionsStatus === 'generating' && (
-            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤔</div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
+            <div className="reading-questions-loading">
+              <div className="reading-questions-loading-icon">🤔</div>
+              <p className="reading-questions-loading-text">
                 正在准备题...
                 <br />
-                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>请稍候，马上就好</span>
+                <span className="reading-questions-loading-subtext">请稍候，马上就好</span>
               </p>
-              <div style={{ 
-                width: '200px', 
-                height: '4px', 
-                backgroundColor: 'var(--paper-dark)',
-                margin: '20px auto',
-                borderRadius: '2px',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  width: '100%',
-                  height: '100%',
-                  backgroundColor: 'var(--accent-primary)',
-                  animation: 'loadingBar 1.5s infinite ease-in-out',
-                  transformOrigin: 'left'
-                }} />
+              <div className="reading-questions-loading-bar">
+                <div className="reading-questions-loading-bar-fill" />
               </div>
-              <style>{`
-                @keyframes loadingBar {
-                  0% { transform: scaleX(0); }
-                  50% { transform: scaleX(1); }
-                  100% { transform: scaleX(0); transform-origin: right; }
-                }
-              `}</style>
             </div>
           )}
-          
+
           {!questionsLoading && questionsStatus === 'ready' && questions.length > 0 && (
             <>
               {questions.map((question, index) => (
-                <div key={question.id} style={{ marginBottom: '24px' }}>
-                  <p style={{ fontWeight: 600, marginBottom: '12px', color: 'var(--text-heading)' }}>
+                <div key={question.id} className="reading-question-item">
+                  <p className="reading-question-text">
                     {index + 1}. {question.question_text}
                   </p>
-                  <div style={{ paddingLeft: '12px' }}>
+                  <div className="reading-question-options">
                     {['A', 'B', 'C', 'D'].map((option) => (
-                      <label 
+                      <label
                         key={option}
-                        className="question-option"
-                        style={{ 
-                          backgroundColor: answers[question.id] === option 
-                            ? 'rgba(122, 106, 90, 0.08)' 
-                            : 'transparent',
-                          borderColor: answers[question.id] === option 
-                            ? 'var(--accent-primary)' 
-                            : 'var(--paper-dark)'
-                        }}
+                        className={`question-option ${
+                          answers[question.id] === option ? 'selected' : ''
+                        }`}
                       >
                         <input
                           type="radio"
@@ -745,10 +709,9 @@ const ReadingTest = ({ isGuestMode = false }) => {
               ))}
               
               <button
-                className="btn btn-primary"
+                className="btn btn-primary reading-submit-btn"
                 onClick={submitTest}
                 disabled={submitting}
-                style={{ width: '100%', marginTop: '20px' }}
               >
                 {submitting ? '提交中...' : '提交答案'}
               </button>

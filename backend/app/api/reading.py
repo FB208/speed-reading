@@ -1,192 +1,22 @@
-import threading
 import random
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import ensure_book_in_bookshelf, get_current_user
 from app.db.database import get_db
 from app.models import models, schemas
-from app.services.ai_service import AIService
+from app.services.reading_service import (
+    build_question_map,
+    clear_question_task,
+    get_questions_response,
+    is_question_generating,
+    serialize_paragraph,
+    start_question_generation,
+)
 
 router = APIRouter(prefix="/reading", tags=["阅读测试"])
-
-# 存储正在生成问题的任务状态
-generating_tasks = {}
-# 线程锁，防止并发重复生成
-generating_lock = threading.Lock()
-
-
-def _serialize_paragraph(paragraph: models.Paragraph) -> dict:
-    return {
-        "id": paragraph.id,
-        "book_id": paragraph.book_id,
-        "sequence": paragraph.sequence,
-        "content": paragraph.content,
-        "word_count": paragraph.word_count,
-    }
-
-
-def _serialize_questions(questions: list[models.Question]) -> list[dict]:
-    return [
-        {
-            "id": question.id,
-            "question_text": question.question_text,
-            "option_a": question.option_a,
-            "option_b": question.option_b,
-            "option_c": question.option_c,
-            "option_d": question.option_d,
-        }
-        for question in questions
-    ]
-
-
-def _start_question_generation(paragraph_id: int, paragraph_content: str) -> None:
-    with generating_lock:
-        if paragraph_id in generating_tasks:
-            return
-
-        print(f"[问题生成] 段落{paragraph_id}没有任务，启动生成")
-        generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
-        thread = threading.Thread(
-            target=generate_questions_async,
-            args=(paragraph_id, paragraph_content, None),
-        )
-        thread.daemon = True
-        thread.start()
-
-
-def _get_questions_response(
-    db: Session, paragraph_id: int, paragraph_content: str
-) -> dict:
-    existing_questions = (
-        db.query(models.Question)
-        .filter(models.Question.paragraph_id == paragraph_id)
-        .all()
-    )
-
-    if existing_questions:
-        print(f"[获取问题] 段落{paragraph_id}已存在{len(existing_questions)}道问题")
-        return {
-            "status": "ready",
-            "questions": _serialize_questions(existing_questions),
-        }
-
-    if paragraph_id in generating_tasks:
-        task_info = generating_tasks[paragraph_id]
-        print(f"[获取问题] 段落{paragraph_id}当前状态: {task_info['status']}")
-
-        if task_info["status"] == "generating":
-            return {
-                "status": "generating",
-                "message": "问题正在生成中，请稍候...",
-                "questions": [],
-            }
-
-        if task_info["status"] == "completed":
-            existing_questions = (
-                db.query(models.Question)
-                .filter(models.Question.paragraph_id == paragraph_id)
-                .all()
-            )
-            if existing_questions:
-                return {
-                    "status": "ready",
-                    "questions": _serialize_questions(existing_questions),
-                }
-
-            print(f"[获取问题] 任务标记完成但数据库为空，清除任务状态")
-            del generating_tasks[paragraph_id]
-            return {
-                "status": "generating",
-                "message": "问题正在保存中，请稍候...",
-                "questions": [],
-            }
-
-        if task_info["status"] == "failed":
-            print(f"[获取问题] 段落{paragraph_id}生成失败，重新启动")
-            del generating_tasks[paragraph_id]
-            _start_question_generation(paragraph_id, paragraph_content)
-            return {
-                "status": "generating",
-                "message": "问题重新生成中，请稍候...",
-                "questions": [],
-            }
-
-    _start_question_generation(paragraph_id, paragraph_content)
-    return {
-        "status": "generating",
-        "message": "问题正在生成中，请稍候...",
-        "questions": [],
-    }
-
-
-def generate_questions_async(
-    paragraph_id: int, paragraph_content: str, db_session_factory
-):
-    """后台异步生成问题"""
-    try:
-        # 创建新的数据库会话
-        from app.db.database import SessionLocal
-
-        db = SessionLocal()
-
-        try:
-            # 【关键】再次检查数据库，确保问题不存在（防止并发重复生成）
-            existing_count = (
-                db.query(models.Question)
-                .filter(models.Question.paragraph_id == paragraph_id)
-                .count()
-            )
-            if existing_count > 0:
-                print(
-                    f"[异步生成] 段落{paragraph_id}已有{existing_count}道问题，跳过生成"
-                )
-                generating_tasks[paragraph_id] = {
-                    "status": "completed",
-                    "progress": 100,
-                }
-                return
-
-            # 标记为正在生成
-            generating_tasks[paragraph_id] = {"status": "generating", "progress": 0}
-            print(f"[异步生成] 开始为段落{paragraph_id}生成问题")
-
-            ai_service = AIService()
-            questions_data = ai_service.generate_questions(paragraph_content)
-            ai_service.save_questions(db, paragraph_id, questions_data)
-
-            # 标记为完成
-            generating_tasks[paragraph_id] = {"status": "completed", "progress": 100}
-            print(f"[异步生成] 段落{paragraph_id}的问题生成完成")
-        except Exception as e:
-            # 即使失败也要保存默认问题，避免循环
-            print(f"[异步生成] 段落{paragraph_id}生成失败，使用默认问题: {str(e)}")
-            try:
-                # 再次检查，避免重复保存
-                existing_count = (
-                    db.query(models.Question)
-                    .filter(models.Question.paragraph_id == paragraph_id)
-                    .count()
-                )
-                if existing_count == 0:
-                    # 保存默认问题
-                    default_questions = AIService()._get_default_questions()
-                    AIService().save_questions(db, paragraph_id, default_questions)
-                    print(f"[异步生成] 段落{paragraph_id}已保存默认问题")
-                generating_tasks[paragraph_id] = {
-                    "status": "completed",
-                    "progress": 100,
-                }
-            except Exception as save_error:
-                print(f"[异步生成] 保存默认问题也失败: {str(save_error)}")
-                generating_tasks[paragraph_id] = {"status": "failed", "error": str(e)}
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"[异步生成] 严重错误: {str(e)}")
-        generating_tasks[paragraph_id] = {"status": "failed", "error": str(e)}
 
 
 @router.get("/next-paragraph/{book_id}", response_model=dict)
@@ -202,26 +32,31 @@ def get_next_paragraph(
 
     ensure_book_in_bookshelf(db, current_user.id, book_id)
 
-    # 查找用户已完成的段落ID
-    completed_paragraph_ids = [
-        progress.paragraph_id
-        for progress in db.query(models.ReadingProgress)
+    completed_paragraph_ids_query = db.query(
+        models.ReadingProgress.paragraph_id
+    ).filter(
+        models.ReadingProgress.user_id == current_user.id,
+        models.ReadingProgress.book_id == book_id,
+        models.ReadingProgress.is_completed == True,
+    )
+
+    completed_count = (
+        db.query(func.count(models.ReadingProgress.id))
         .filter(
             models.ReadingProgress.user_id == current_user.id,
             models.ReadingProgress.book_id == book_id,
             models.ReadingProgress.is_completed == True,
         )
-        .all()
-    ]
+        .scalar()
+        or 0
+    )
 
     # 查找下一个未完成的段落
     next_paragraph = (
         db.query(models.Paragraph)
         .filter(
             models.Paragraph.book_id == book_id,
-            ~models.Paragraph.id.in_(completed_paragraph_ids)
-            if completed_paragraph_ids
-            else True,
+            ~models.Paragraph.id.in_(completed_paragraph_ids_query),
         )
         .order_by(models.Paragraph.sequence)
         .first()
@@ -232,7 +67,7 @@ def get_next_paragraph(
             "message": "恭喜！你已经完成了这本书的所有段落",
             "paragraph": None,
             "progress": {
-                "completed": len(completed_paragraph_ids),
+                "completed": completed_count,
                 "total": db.query(models.Paragraph)
                 .filter(models.Paragraph.book_id == book_id)
                 .count(),
@@ -251,15 +86,14 @@ def get_next_paragraph(
     )
 
     if existing_questions == 0:
-        _start_question_generation(next_paragraph.id, next_paragraph.content)
+        start_question_generation(next_paragraph.id, next_paragraph.content)
 
     return {
-        "paragraph": _serialize_paragraph(next_paragraph),
+        "paragraph": serialize_paragraph(next_paragraph),
         "questions_ready": existing_questions > 0,
-        "questions_generating": next_paragraph.id in generating_tasks
-        and generating_tasks[next_paragraph.id]["status"] == "generating",
+        "questions_generating": is_question_generating(next_paragraph.id),
         "progress": {
-            "completed": len(completed_paragraph_ids),
+            "completed": completed_count,
             "total": total_paragraphs,
             "current": next_paragraph.sequence,
         },
@@ -300,13 +134,12 @@ def get_guest_random_paragraph(db: Session = Depends(get_db)):
         .count()
     )
     if existing_questions == 0:
-        _start_question_generation(paragraph.id, paragraph.content)
+        start_question_generation(paragraph.id, paragraph.content)
 
     return {
-        "paragraph": _serialize_paragraph(paragraph),
+        "paragraph": serialize_paragraph(paragraph),
         "questions_ready": existing_questions > 0,
-        "questions_generating": paragraph.id in generating_tasks
-        and generating_tasks[paragraph.id]["status"] == "generating",
+        "questions_generating": is_question_generating(paragraph.id),
     }
 
 
@@ -324,7 +157,7 @@ def get_questions(
     if not paragraph:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    return _get_questions_response(db, paragraph_id, paragraph.content)
+    return get_questions_response(db, paragraph_id, paragraph.content)
 
 
 @router.get("/guest/questions/{paragraph_id}", response_model=dict)
@@ -337,7 +170,7 @@ def get_guest_questions(paragraph_id: int, db: Session = Depends(get_db)):
     if not paragraph:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="段落不存在")
 
-    return _get_questions_response(db, paragraph_id, paragraph.content)
+    return get_questions_response(db, paragraph_id, paragraph.content)
 
 
 @router.post("/submit-test", response_model=schemas.TestResultResponse)
@@ -366,13 +199,10 @@ def submit_test(
     # 检查答案
     correct_count = 0
     total_questions = len(test_data.answers)
+    questions_map = build_question_map(db, test_data.paragraph_id, test_data.answers)
 
     for answer_data in test_data.answers:
-        question = (
-            db.query(models.Question)
-            .filter(models.Question.id == answer_data.question_id)
-            .first()
-        )
+        question = questions_map.get(answer_data.question_id)
 
         if question and question.correct_answer.upper() == answer_data.answer.upper():
             correct_count += 1
@@ -398,11 +228,7 @@ def submit_test(
 
     # 保存用户答案
     for answer_data in test_data.answers:
-        question = (
-            db.query(models.Question)
-            .filter(models.Question.id == answer_data.question_id)
-            .first()
-        )
+        question = questions_map.get(answer_data.question_id)
 
         is_correct = (
             question.correct_answer.upper() == answer_data.answer.upper()
@@ -442,8 +268,7 @@ def submit_test(
     db.commit()
 
     # 清理生成任务状态
-    if test_data.paragraph_id in generating_tasks:
-        del generating_tasks[test_data.paragraph_id]
+    clear_question_task(test_data.paragraph_id)
 
     return test_result
 
@@ -468,13 +293,10 @@ def submit_guest_test(test_data: schemas.TestSubmit, db: Session = Depends(get_d
     correct_count = 0
     total_questions = len(test_data.answers)
     answers_detail = []
+    questions_map = build_question_map(db, test_data.paragraph_id, test_data.answers)
 
     for answer_data in test_data.answers:
-        question = (
-            db.query(models.Question)
-            .filter(models.Question.id == answer_data.question_id)
-            .first()
-        )
+        question = questions_map.get(answer_data.question_id)
         if not question:
             continue
 
@@ -525,7 +347,15 @@ def get_test_results(
 ):
     """获取用户的测试历史（包含书籍信息）"""
     results = (
-        db.query(models.TestResult)
+        db.query(
+            models.TestResult,
+            models.Paragraph.book_id.label("book_id"),
+            models.Book.title.label("book_title"),
+        )
+        .outerjoin(
+            models.Paragraph, models.Paragraph.id == models.TestResult.paragraph_id
+        )
+        .outerjoin(models.Book, models.Book.id == models.Paragraph.book_id)
         .filter(models.TestResult.user_id == current_user.id)
         .order_by(models.TestResult.created_at.desc())
         .offset(skip)
@@ -535,20 +365,7 @@ def get_test_results(
 
     # 构建包含书籍信息的响应
     response = []
-    for result in results:
-        paragraph = (
-            db.query(models.Paragraph)
-            .filter(models.Paragraph.id == result.paragraph_id)
-            .first()
-        )
-        book = None
-        if paragraph:
-            book = (
-                db.query(models.Book)
-                .filter(models.Book.id == paragraph.book_id)
-                .first()
-            )
-
+    for result, book_id, book_title in results:
         response.append(
             {
                 "id": result.id,
@@ -559,8 +376,8 @@ def get_test_results(
                 "total_questions": result.total_questions,
                 "comprehension_rate": result.comprehension_rate,
                 "created_at": result.created_at,
-                "book_id": book.id if book else None,
-                "book_title": book.title if book else "未知书籍",
+                "book_id": int(book_id) if book_id is not None else None,
+                "book_title": book_title or "未知书籍",
             }
         )
 
@@ -574,19 +391,11 @@ def get_test_result_detail(
     current_user: models.User = Depends(get_current_user),
 ):
     """获取测试详情（包含正确答案）"""
-    print(f"[获取结果详情] 查询 result_id={result_id}, user_id={current_user.id}")
-
-    # 先不带用户过滤查询，看记录是否存在
-    result_any = (
-        db.query(models.TestResult).filter(models.TestResult.id == result_id).first()
-    )
-    if result_any:
-        print(f"[获取结果详情] 记录存在，属于 user_id={result_any.user_id}")
-    else:
-        print(f"[获取结果详情] 记录 id={result_id} 不存在")
-
     result = (
         db.query(models.TestResult)
+        .options(
+            joinedload(models.TestResult.answers).joinedload(models.UserAnswer.question)
+        )
         .filter(
             models.TestResult.id == result_id,
             models.TestResult.user_id == current_user.id,
@@ -609,11 +418,9 @@ def get_test_result_detail(
     # 获取答案详情
     answers_detail = []
     for answer in result.answers:
-        question = (
-            db.query(models.Question)
-            .filter(models.Question.id == answer.question_id)
-            .first()
-        )
+        question = answer.question
+        if not question:
+            continue
 
         answers_detail.append(
             {
@@ -654,40 +461,29 @@ def delete_book_test_results(
     current_user: models.User = Depends(get_current_user),
 ):
     """删除某本书的所有测试记录"""
-    # 获取该书籍的所有段落ID
-    paragraph_ids = [
-        p.id
-        for p in db.query(models.Paragraph)
-        .filter(models.Paragraph.book_id == book_id)
-        .all()
-    ]
-
-    if not paragraph_ids:
+    book_exists = db.query(models.Book.id).filter(models.Book.id == book_id).first()
+    if not book_exists:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
 
-    # 获取该用户在这本书中的所有测试结果ID
-    test_result_ids = [
-        r.id
-        for r in db.query(models.TestResult.id)
-        .filter(
-            models.TestResult.user_id == current_user.id,
-            models.TestResult.paragraph_id.in_(paragraph_ids),
-        )
-        .all()
-    ]
+    paragraph_ids_query = db.query(models.Paragraph.id).filter(
+        models.Paragraph.book_id == book_id
+    )
 
-    # 先删除关联的用户答案记录（避免外键约束冲突）
-    if test_result_ids:
-        db.query(models.UserAnswer).filter(
-            models.UserAnswer.test_result_id.in_(test_result_ids)
-        ).delete(synchronize_session=False)
+    test_result_ids_query = db.query(models.TestResult.id).filter(
+        models.TestResult.user_id == current_user.id,
+        models.TestResult.paragraph_id.in_(paragraph_ids_query),
+    )
+
+    db.query(models.UserAnswer).filter(
+        models.UserAnswer.test_result_id.in_(test_result_ids_query)
+    ).delete(synchronize_session=False)
 
     # 再删除测试结果
     deleted_count = (
         db.query(models.TestResult)
         .filter(
             models.TestResult.user_id == current_user.id,
-            models.TestResult.paragraph_id.in_(paragraph_ids),
+            models.TestResult.paragraph_id.in_(paragraph_ids_query),
         )
         .delete(synchronize_session=False)
     )

@@ -1,11 +1,12 @@
 import os
 import re
 import shutil
+import logging
 from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import can_manage_book, ensure_book_in_bookshelf, get_current_user
 from app.db.database import get_db
@@ -14,6 +15,7 @@ from app.services.book_processor import BookProcessor
 from app.utils.cover_extractor import CoverExtractor
 
 router = APIRouter(prefix="/books", tags=["书籍"])
+logger = logging.getLogger(__name__)
 
 # 确保上传目录存在
 UPLOAD_DIR = "uploads"
@@ -61,7 +63,13 @@ def get_books(
     current_user: models.User = Depends(get_current_user),
 ):
     """获取书籍列表"""
-    books = db.query(models.Book).offset(skip).limit(limit).all()
+    books = (
+        db.query(models.Book)
+        .options(joinedload(models.Book.uploader))
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return [serialize_book(book, current_user) for book in books]
 
 
@@ -72,7 +80,12 @@ def get_book(
     current_user: models.User = Depends(get_current_user),
 ):
     """获取单本书籍信息"""
-    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    book = (
+        db.query(models.Book)
+        .options(joinedload(models.Book.uploader))
+        .filter(models.Book.id == book_id)
+        .first()
+    )
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书籍不存在")
     return serialize_book(book, current_user)
@@ -130,7 +143,7 @@ async def upload_book(
             manual_filename=manual_cover_filename,
         )
     except Exception as e:
-        print(f"封面处理失败: {str(e)}")
+        logger.warning("封面处理失败: %s", str(e), exc_info=True)
 
     db_book = models.Book(
         title=title,
@@ -377,18 +390,18 @@ def delete_book(
         if os.path.exists(file_path):
             os.remove(file_path)
     except Exception as e:
-        print(f"删除文件失败: {str(e)}")
+        logger.warning("删除文件失败: %s", str(e), exc_info=True)
 
     if cover_image:
         try:
             cover_extractor = CoverExtractor(COVERS_DIR)
             cover_extractor.delete_cover(cover_image)
         except Exception as e:
-            print(f"删除封面失败: {str(e)}")
+            logger.warning("删除封面失败: %s", str(e), exc_info=True)
 
     try:
         shutil.rmtree(
             os.path.join(BOOK_IMAGES_DIR, f"book_{book_id}"), ignore_errors=True
         )
     except Exception as e:
-        print(f"删除正文图片失败: {str(e)}")
+        logger.warning("删除正文图片失败: %s", str(e), exc_info=True)

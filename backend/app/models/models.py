@@ -7,6 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     Boolean,
     Float,
+    Index,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import LONGTEXT
@@ -36,6 +37,10 @@ class User(Base):
 class Book(Base):
     __tablename__ = "books"
 
+    __table_args__ = (
+        Index("idx_books_uploaded_by_created", "uploaded_by_user_id", "created_at"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)
     author = Column(String(100), nullable=True)
@@ -63,6 +68,7 @@ class BookshelfItem(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "book_id", name="uq_bookshelf_user_book"),
+        Index("idx_bookshelf_user_created", "user_id", "created_at"),
     )
 
     user = relationship("User", back_populates="bookshelf_items")
@@ -71,6 +77,11 @@ class BookshelfItem(Base):
 
 class Paragraph(Base):
     __tablename__ = "paragraphs"
+
+    __table_args__ = (
+        UniqueConstraint("book_id", "sequence", name="uq_paragraph_book_sequence"),
+        Index("idx_paragraph_book_sequence", "book_id", "sequence"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
@@ -90,6 +101,8 @@ class Paragraph(Base):
 class Question(Base):
     __tablename__ = "questions"
 
+    __table_args__ = (Index("idx_question_paragraph", "paragraph_id"),)
+
     id = Column(Integer, primary_key=True, index=True)
     paragraph_id = Column(Integer, ForeignKey("paragraphs.id"), nullable=False)
     question_text = Column(Text, nullable=False)
@@ -108,6 +121,12 @@ class Question(Base):
 class ReadingProgress(Base):
     __tablename__ = "reading_progress"
 
+    __table_args__ = (
+        UniqueConstraint("user_id", "paragraph_id", name="uq_progress_user_paragraph"),
+        Index("idx_progress_user_book_completed", "user_id", "book_id", "is_completed"),
+        Index("idx_progress_user_paragraph", "user_id", "paragraph_id"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
@@ -122,6 +141,11 @@ class ReadingProgress(Base):
 
 class TestResult(Base):
     __tablename__ = "test_results"
+
+    __table_args__ = (
+        Index("idx_test_result_user_created", "user_id", "created_at"),
+        Index("idx_test_result_user_paragraph", "user_id", "paragraph_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -142,6 +166,11 @@ class TestResult(Base):
 
 class UserAnswer(Base):
     __tablename__ = "user_answers"
+
+    __table_args__ = (
+        Index("idx_user_answer_test_result", "test_result_id"),
+        Index("idx_user_answer_question", "question_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     test_result_id = Column(Integer, ForeignKey("test_results.id"), nullable=False)

@@ -1,12 +1,15 @@
 import json
 import re
+import logging
 from openai import OpenAI
 import httpx
 from app.core.config import settings
 from sqlalchemy.orm import Session
 from app.models import models
 from typing import List
-import traceback
+
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
@@ -22,9 +25,9 @@ class AIService:
         # 只有在设置了自定义base_url时才传递
         if settings.OPENAI_BASE_URL and settings.OPENAI_BASE_URL.strip():
             client_kwargs["base_url"] = settings.OPENAI_BASE_URL
-            print(f"[AI初始化] 使用自定义base_url: {settings.OPENAI_BASE_URL}")
+            logger.info("[AI初始化] 使用自定义base_url: %s", settings.OPENAI_BASE_URL)
         else:
-            print(f"[AI初始化] 使用默认OpenAI API地址")
+            logger.info("[AI初始化] 使用默认OpenAI API地址")
 
         self.client = OpenAI(**client_kwargs)
         self.model = settings.OPENAI_MODEL
@@ -32,11 +35,11 @@ class AIService:
     def _validate_questions_format(self, questions: List[dict]) -> bool:
         """验证问题格式是否正确"""
         if not isinstance(questions, list):
-            print(f"[AI验证失败] 返回的不是列表类型: {type(questions)}")
+            logger.warning("[AI验证失败] 返回的不是列表类型: %s", type(questions))
             return False
 
         if len(questions) != 5:
-            print(f"[AI验证失败] 返回的问题数量不是5个: {len(questions)}")
+            logger.warning("[AI验证失败] 返回的问题数量不是5个: %s", len(questions))
             return False
 
         for i, q in enumerate(questions):
@@ -44,7 +47,7 @@ class AIService:
             required_keys = ["question", "options", "correct_answer"]
             missing_keys = [k for k in required_keys if k not in q]
             if missing_keys:
-                print(f"[AI验证失败] 第{i + 1}题缺少字段: {missing_keys}")
+                logger.warning("[AI验证失败] 第%s题缺少字段: %s", i + 1, missing_keys)
                 return False
 
             # 检查options格式
@@ -52,20 +55,24 @@ class AIService:
             option_keys = ["A", "B", "C", "D"]
             missing_options = [k for k in option_keys if k not in options]
             if missing_options:
-                print(f"[AI验证失败] 第{i + 1}题缺少选项: {missing_options}")
+                logger.warning(
+                    "[AI验证失败] 第%s题缺少选项: %s", i + 1, missing_options
+                )
                 return False
 
             # 检查correct_answer是否为A/B/C/D之一
             correct = q.get("correct_answer")
             if correct not in ["A", "B", "C", "D"]:
-                print(f"[AI验证失败] 第{i + 1}题正确答案格式错误: {correct}")
+                logger.warning(
+                    "[AI验证失败] 第%s题正确答案格式错误: %s", i + 1, correct
+                )
                 return False
 
         return True
 
     def _call_openai_api(self, prompt: str) -> List[dict]:
         """调用OpenAI API生成问题"""
-        print(f"\n[AI请求提示词]\n{prompt}\n")
+        logger.debug("[AI请求提示词] %s", prompt)
 
         response_content = None
 
@@ -83,9 +90,9 @@ class AIService:
             )
 
             # 解析响应
-            print(f"[AI返回结果]\n{response}\n")
+            logger.debug("[AI返回结果] %s", response)
             response_content = response.choices[0].message.content
-            print(f"[AI返回内容]\n{response_content}\n")
+            logger.debug("[AI返回内容] %s", response_content)
 
             if not response_content:
                 raise ValueError("AI返回内容为空")
@@ -96,13 +103,12 @@ class AIService:
             questions = data.get("questions", [])
             return questions
         except json.JSONDecodeError as e:
-            print(f"[AI返回JSON解析失败] {str(e)}")
+            logger.warning("[AI返回JSON解析失败] %s", str(e))
             if response_content:
-                print(f"[AI原始返回] {response_content}")
+                logger.warning("[AI原始返回] %s", response_content)
             raise
         except Exception as e:
-            print(f"[AI调用失败] {str(e)}")
-            print(traceback.format_exc())
+            logger.exception("[AI调用失败] %s", str(e))
             raise
 
     def generate_questions(self, paragraph_content: str) -> List[dict]:
@@ -148,7 +154,7 @@ class AIService:
 
         for attempt in range(max_retries + 1):
             try:
-                print(f"[AI生成] 第{attempt + 1}次尝试...")
+                logger.info("[AI生成] 第%s次尝试...", attempt + 1)
 
                 # 构建提示词，如果是重试则添加错误提示
                 if attempt > 0:
@@ -163,28 +169,32 @@ class AIService:
 
                 # 验证格式
                 if self._validate_questions_format(questions):
-                    print(f"[AI生成成功] 成功生成5道问题")
+                    logger.info("[AI生成成功] 成功生成5道问题")
                     return questions
                 else:
                     last_error = f"第{attempt + 1}次生成的格式不正确"
-                    print(f"[AI验证] {last_error}")
+                    logger.warning("[AI验证] %s", last_error)
 
                     if attempt >= max_retries:
-                        print(
-                            f"[AI生成] 已达到最大重试次数({max_retries}次)，使用默认问题"
+                        logger.warning(
+                            "[AI生成] 已达到最大重试次数(%s次)，使用默认问题",
+                            max_retries,
                         )
                         break
 
             except Exception as e:
                 last_error = str(e)
-                print(f"[AI生成] 第{attempt + 1}次生成失败: {last_error}")
+                logger.warning("[AI生成] 第%s次生成失败: %s", attempt + 1, last_error)
 
                 if attempt >= max_retries:
-                    print(f"[AI生成] 已达到最大重试次数({max_retries}次)，使用默认问题")
+                    logger.warning(
+                        "[AI生成] 已达到最大重试次数(%s次)，使用默认问题",
+                        max_retries,
+                    )
                     break
 
         # 所有重试都失败，返回默认问题
-        print(f"[AI生成] 使用默认问题")
+        logger.warning("[AI生成] 使用默认问题")
         return self._get_default_questions()
 
     def _get_default_questions(self) -> List[dict]:
@@ -214,4 +224,4 @@ class AIService:
             db.add(question)
 
         db.commit()
-        print(f"[AI保存] 成功保存{len(questions_data)}道问题到数据库")
+        logger.info("[AI保存] 成功保存%s道问题到数据库", len(questions_data))

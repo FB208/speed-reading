@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Redis配置
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # 日志配置
+    LOG_LEVEL: str = "INFO"
+
     @property
     def DATABASE_URL(self) -> str:
         return f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}?charset=utf8mb4"

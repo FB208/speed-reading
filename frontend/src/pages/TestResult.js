@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { readingAPI } from '../services/api';
+import '../styles/test-result.css';
 
 const TestResult = ({ isGuestMode = false }) => {
   const { resultId } = useParams();
@@ -103,88 +104,49 @@ const TestResult = ({ isGuestMode = false }) => {
         </div>
 
         {result && (
-          <div style={{ marginBottom: '32px' }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: '16px',
-                marginBottom: '24px'
-              }}
-            >
+          <div className="result-metrics-wrap">
+            <div className="result-metrics-grid">
               {/* 阅读速度 - 总是显示 */}
-              <div
-                style={{
-                  background: 'var(--accent-light-bg)',
-                  padding: '20px',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                  border: '1px solid var(--paper-dark)'
-                }}
-              >
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
+              <div className="result-metric-card result-metric-card-speed">
+                <div className="result-metric-value result-metric-value-speed">
                   {isSkipped && !isGuestMode ? (
-                    <span style={{ fontSize: '16px', color: 'var(--text-muted)' }}>跳过测试</span>
+                    <span className="result-skip-tag">跳过测试</span>
                   ) : (
                     result.words_per_minute
                   )}
                 </div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>阅读速度（字/分钟）</div>
+                <div className="result-metric-label">阅读速度（字/分钟）</div>
               </div>
 
               {/* 理解程度 - 仅在非跳过时显示 */}
               {!isSkipped && (
-                <div
-                  style={{
-                    background: 'var(--success-light)',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    textAlign: 'center',
-                    border: '1px solid var(--paper-dark)'
-                  }}
-                >
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--success)' }}>
+                <div className="result-metric-card result-metric-card-comprehension">
+                  <div className="result-metric-value result-metric-value-comprehension">
                     {result.comprehension_rate}%
                   </div>
-                  <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>理解程度</div>
+                  <div className="result-metric-label">理解程度</div>
                 </div>
               )}
 
               {/* 阅读时长 - 总是显示 */}
-              <div
-                style={{
-                  background: 'var(--warning-light)',
-                  padding: '20px',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                  border: '1px solid var(--paper-dark)'
-                }}
-              >
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--warning)' }}>
+              <div className="result-metric-card result-metric-card-duration">
+                <div className="result-metric-value result-metric-value-duration">
                   {formatTime(
                     isSkipped && !isGuestMode
                       ? skippedData?.readingTimeSeconds || 0
                       : result.reading_time_seconds
                   )}
                 </div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>阅读时长</div>
+                <div className="result-metric-label">阅读时长</div>
               </div>
 
               {/* 答对题数 - 仅在非跳过时显示 */}
               {!isSkipped && (
-                <div
-                  style={{
-                    background: 'var(--accent-purple-light)',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    textAlign: 'center',
-                    border: '1px solid var(--paper-dark)'
-                  }}
-                >
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-purple)' }}>
+                <div className="result-metric-card result-metric-card-correct">
+                  <div className="result-metric-value result-metric-value-correct">
                     {result.correct_count}/{result.total_questions}
                   </div>
-                  <div style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>答对题数</div>
+                  <div className="result-metric-label">答对题数</div>
                 </div>
               )}
             </div>
@@ -194,52 +156,32 @@ const TestResult = ({ isGuestMode = false }) => {
         <h3 className="result-section-title">答案详解</h3>
 
         {isSkipped ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '40px 20px',
-            backgroundColor: 'var(--paper-bg)',
-            borderRadius: '8px',
-            border: '1px solid var(--paper-dark)'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏭️</div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '16px', margin: 0 }}>
+          <div className="result-skipped-panel">
+            <div className="result-skipped-icon">⏭️</div>
+            <p className="result-skipped-title">
               你已跳过测试，不显示答题详情
             </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '8px' }}>
+            <p className="result-skipped-desc">
               阅读速度：已记录 | 理解程度：未测试
             </p>
           </div>
         ) : (
           answersDetail.map((item, index) => (
-            <div
-              key={index}
-              style={{
-                marginBottom: '20px',
-                padding: '16px',
-                borderRadius: '8px',
-                backgroundColor: item.is_correct ? 'var(--success-light)' : 'var(--error-light)',
-                border: `1px solid ${item.is_correct ? 'var(--success)' : 'var(--error)'}`
-              }}
-            >
-              <p style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-heading)' }}>
+            <div key={index} className={`result-answer-card ${item.is_correct ? 'is-correct' : 'is-wrong'}`}>
+              <p className="result-answer-question">
                 {index + 1}. {item.question}
               </p>
-              <div style={{ paddingLeft: '12px' }}>
+              <div className="result-answer-options">
                 {['A', 'B', 'C', 'D'].map((option) => (
                   <div
                     key={option}
-                    style={{
-                      padding: '6px 10px',
-                      marginBottom: '4px',
-                      borderRadius: '6px',
-                      backgroundColor:
-                        option === item.correct_answer ? 'var(--success-light)' :
-                        (option === item.user_answer && !item.is_correct) ? 'var(--error-light)' : 'transparent',
-                      fontWeight: option === item.correct_answer ? 600 : 'normal',
-                      color: option === item.correct_answer ? 'var(--success)' : 
-                             (option === item.user_answer && !item.is_correct) ? 'var(--error)' : 'var(--text-primary)',
-                      border: option === item.correct_answer ? '1px solid var(--success)' : '1px solid transparent'
-                    }}
+                    className={`result-answer-option ${
+                      option === item.correct_answer
+                        ? 'is-correct'
+                        : option === item.user_answer && !item.is_correct
+                        ? 'is-wrong'
+                        : ''
+                    }`}
                   >
                     {option}. {item.options[option]}
                     {option === item.correct_answer && ' ✓'}
@@ -247,7 +189,7 @@ const TestResult = ({ isGuestMode = false }) => {
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <div className="result-answer-summary">
                 你的答案：{item.user_answer} | 正确答案：{item.correct_answer}
               </div>
             </div>
