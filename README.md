@@ -26,6 +26,25 @@
 
 ## 快速开始
 
+### 一键启动前后端调试（Windows）
+
+在项目根目录执行：
+
+```bash
+start-dev.bat
+```
+
+脚本会自动完成以下操作：
+
+- 检查 `backend/` 与 `frontend/` 目录是否存在
+- 检查 `python` 与 `npm` 是否可用
+- 首次自动创建 `backend/venv` 并安装后端依赖
+- 若缺少 `backend/.env`，会尝试从 `.env.example` 自动复制
+- 首次自动执行前端 `npm install`
+- 分别在两个终端窗口启动：
+  - 后端：`http://localhost:8000`
+  - 前端：`http://localhost:3000`
+
 ### 1. 安装MySQL和Redis
 
 确保本地已安装MySQL和Redis，并创建数据库：
