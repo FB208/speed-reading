@@ -464,7 +464,7 @@ class BookProcessor:
             return self._split_oversized_paragraphs([content])
 
     def _split_oversized_paragraphs(
-        self, paragraphs: List[str], max_text_length: int = 4000
+        self, paragraphs: List[str], max_text_length: int = 1000
     ) -> List[str]:
         """将超长段落按纯文本长度切分，避免数据库字段超限"""
         try:
