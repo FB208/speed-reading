@@ -148,9 +148,11 @@ async def upload_book(
         processor = BookProcessor(db)
         await processor.process_book(db_book.id, file_path)
     except Exception as e:
+        db.rollback()
         db.delete(db_book)
         db.commit()
-        os.remove(file_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
         shutil.rmtree(
             os.path.join(BOOK_IMAGES_DIR, f"book_{db_book.id}"), ignore_errors=True
         )

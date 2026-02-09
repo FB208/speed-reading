@@ -428,8 +428,8 @@ class BookProcessor:
                     elements.append(str(elem))
 
             if not elements:
-                # 如果没有找到合适的元素，返回整个内容
-                return [content]
+                # 如果没有找到合适元素，按文本回退分段，避免单段过长
+                return self._split_oversized_paragraphs([content])
 
             # 合并段落（根据纯文本字数）
             result = []
@@ -458,10 +458,57 @@ class BookProcessor:
             if current_paragraph:
                 result.append(current_paragraph)
 
-            return result if result else [content]
+            return self._split_oversized_paragraphs(result if result else [content])
         except Exception as e:
-            # 如果解析失败，返回整个内容
-            return [content]
+            # 如果解析失败，按文本回退分段，避免单段过长
+            return self._split_oversized_paragraphs([content])
+
+    def _split_oversized_paragraphs(
+        self, paragraphs: List[str], max_text_length: int = 4000
+    ) -> List[str]:
+        """将超长段落按纯文本长度切分，避免数据库字段超限"""
+        try:
+            from bs4 import BeautifulSoup
+
+            normalized: List[str] = []
+            for paragraph in paragraphs:
+                text = BeautifulSoup(paragraph, "html.parser").get_text("\n")
+                text_blocks = [
+                    line.strip() for line in text.split("\n") if line.strip()
+                ]
+
+                if not text_blocks:
+                    continue
+
+                current = ""
+                for block in text_blocks:
+                    if not current:
+                        current = block
+                        continue
+
+                    if len(current) + len(block) + 1 <= max_text_length:
+                        current += "\n" + block
+                    else:
+                        normalized.append(f"<p>{current}</p>")
+                        current = block
+
+                if current:
+                    normalized.append(f"<p>{current}</p>")
+
+            return normalized if normalized else paragraphs
+        except Exception:
+            # 回退到最基础按字符切分
+            normalized = []
+            for paragraph in paragraphs:
+                if len(paragraph) <= max_text_length:
+                    normalized.append(paragraph)
+                    continue
+
+                for i in range(0, len(paragraph), max_text_length):
+                    chunk = paragraph[i : i + max_text_length]
+                    normalized.append(f"<p>{chunk}</p>")
+
+            return normalized if normalized else paragraphs
 
     def _split_text_paragraphs(self, content: str) -> List[str]:
         """分割纯文本段落"""

@@ -9,6 +9,7 @@ from sqlalchemy import (
     Float,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.database import Base
@@ -74,7 +75,7 @@ class Paragraph(Base):
     id = Column(Integer, primary_key=True, index=True)
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     sequence = Column(Integer, nullable=False)  # 段落序号
-    content = Column(Text, nullable=False)
+    content = Column(Text().with_variant(LONGTEXT, "mysql"), nullable=False)
     word_count = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
