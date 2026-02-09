@@ -1,5 +1,6 @@
 import re
 import os
+import codecs
 import hashlib
 import shutil
 import posixpath
@@ -72,17 +73,9 @@ class BookProcessor:
         file_ext = os.path.splitext(file_path)[1].lower()
 
         if file_ext == ".txt":
-            # 尝试多种编码
-            encodings = ["utf-8", "gbk", "gb2312", "utf-16"]
-            for encoding in encodings:
-                try:
-                    with open(file_path, "r", encoding=encoding) as f:
-                        content = f.read()
-                        # 将markdown格式转换为HTML
-                        return self._convert_markdown_to_html(content)
-                except UnicodeDecodeError:
-                    continue
-            raise Exception("无法识别文件编码")
+            content = self._decode_text_file(file_path)
+            # 将markdown格式转换为HTML
+            return self._convert_markdown_to_html(content)
 
         elif file_ext == ".docx":
             return self._read_docx_with_format(file_path)
@@ -98,6 +91,67 @@ class BookProcessor:
 
         else:
             raise Exception(f"不支持的文件格式: {file_ext}")
+
+    def _decode_text_file(self, file_path: str) -> str:
+        """自动识别并解码TXT文件，尽可能避免编码识别失败"""
+        with open(file_path, "rb") as f:
+            raw = f.read()
+
+        if not raw:
+            return ""
+
+        # 优先处理带BOM的文本
+        bom_map = [
+            (codecs.BOM_UTF8, "utf-8-sig"),
+            (codecs.BOM_UTF16_LE, "utf-16"),
+            (codecs.BOM_UTF16_BE, "utf-16"),
+            (codecs.BOM_UTF32_LE, "utf-32"),
+            (codecs.BOM_UTF32_BE, "utf-32"),
+        ]
+        for bom, encoding in bom_map:
+            if raw.startswith(bom):
+                return raw.decode(encoding)
+
+        # 常见编码先走严格解码
+        strict_encodings = ["utf-8", "utf-8-sig", "gb18030", "gbk", "gb2312", "big5"]
+        for encoding in strict_encodings:
+            try:
+                return raw.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+
+        # 再做容错评分，选择乱码最少的结果
+        score_encodings = [
+            "utf-8",
+            "utf-8-sig",
+            "gb18030",
+            "gbk",
+            "gb2312",
+            "big5",
+            "utf-16-le",
+            "utf-16-be",
+            "cp1252",
+        ]
+        best_text = ""
+        best_score = None
+
+        for encoding in score_encodings:
+            decoded = raw.decode(encoding, errors="replace")
+            replacement_count = decoded.count("\ufffd")
+            null_count = decoded.count("\x00")
+            control_count = sum(
+                1 for ch in decoded if ord(ch) < 32 and ch not in ("\n", "\r", "\t")
+            )
+            score = replacement_count * 10 + null_count * 5 + control_count
+
+            if best_score is None or score < best_score:
+                best_score = score
+                best_text = decoded
+
+        if best_text:
+            return best_text
+
+        raise Exception("无法识别文件编码")
 
     def _convert_markdown_to_html(self, content: str) -> str:
         """将Markdown格式转换为HTML"""
